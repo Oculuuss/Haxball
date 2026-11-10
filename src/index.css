@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    background-color: #0b1117;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #f1f5f9;
+  }
+}
+
+.font-display {
+  font-family: 'Chakra Petch', sans-serif;
+}

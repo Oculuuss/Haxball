@@ -1,0 +1,6 @@
+{
+  "name": "2D Haxball Futbol Oyunu",
+  "description": "Kırmızı ve Mavi takımların karşılaştığı, 2 kişilik fizik tabanlı 2D arcade futbol oyunu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
