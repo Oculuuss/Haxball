@@ -12,6 +12,8 @@ import {
   Shuffle,
   ChevronUp,
   ChevronDown,
+  LogOut,
+  UserPlus,
 } from 'lucide-react';
 import {
   CameraMode,
@@ -19,6 +21,7 @@ import {
   ClubId,
   MatchFormat,
   MatchSettings,
+  PitchColor,
   PlayerSpeedMultiplier,
   StadiumType,
   TeamId,
@@ -41,6 +44,8 @@ const ALL_CLUBS: ClubId[] = [
   'brentford',
   'chelsea',
   'tottenham',
+  'man_city',
+  'man_united',
   'ipswich',
 ];
 
@@ -49,6 +54,7 @@ interface TeamColumnPanelProps {
   sideSubtitle: string;
   selectedClubId: ClubId;
   onSelectClub: (clubId: ClubId) => void;
+  canEditClub?: boolean;
   footerSlot?: React.ReactNode;
 }
 
@@ -57,6 +63,7 @@ const TeamColumnPanel: React.FC<TeamColumnPanelProps> = ({
   sideSubtitle,
   selectedClubId,
   onSelectClub,
+  canEditClub = true,
   footerSlot,
 }) => {
   const [slideDir, setSlideDir] = useState<'up' | 'down' | null>(null);
@@ -71,6 +78,7 @@ const TeamColumnPanel: React.FC<TeamColumnPanelProps> = ({
   const nextClub = CLUBS[nextClubId];
 
   const handleStepUp = () => {
+    if (!canEditClub) return;
     soundManager.playClick();
     setSlideDir('up');
     setAnimTick((t) => t + 1);
@@ -78,6 +86,7 @@ const TeamColumnPanel: React.FC<TeamColumnPanelProps> = ({
   };
 
   const handleStepDown = () => {
+    if (!canEditClub) return;
     soundManager.playClick();
     setSlideDir('down');
     setAnimTick((t) => t + 1);
@@ -100,21 +109,23 @@ const TeamColumnPanel: React.FC<TeamColumnPanelProps> = ({
       <div className="mx-auto w-full max-w-[340px] sm:max-w-[380px] my-3.5 px-3">
         <div className="rounded-md overflow-hidden border border-slate-300 shadow-sm">
           {/* TOP UP BUTTON (^) */}
-          <button
-            type="button"
-            onClick={handleStepUp}
-            aria-label={`${sideTitle} önceki takım: ${prevClub.name}`}
-            className="w-full h-11 bg-[#cbd5e1] hover:bg-[#b8c6d8] active:bg-[#a6b7cd] text-slate-950 flex items-center justify-center relative transition-colors border-b border-slate-400/40 group"
-          >
-            <ChevronUp
-              size={28}
-              strokeWidth={3}
-              className="text-black group-hover:-translate-y-0.5 transition-transform"
-            />
-            <span className="absolute right-3 text-[11px] font-medium text-slate-700 hidden sm:inline truncate max-w-[100px]">
-              {prevClub.code}
-            </span>
-          </button>
+          {canEditClub && (
+            <button
+              type="button"
+              onClick={handleStepUp}
+              aria-label={`${sideTitle} önceki takım: ${prevClub.name}`}
+              className="w-full h-11 bg-[#cbd5e1] hover:bg-[#b8c6d8] active:bg-[#a6b7cd] text-slate-950 flex items-center justify-center relative transition-colors border-b border-slate-400/40 group"
+            >
+              <ChevronUp
+                size={28}
+                strokeWidth={3}
+                className="text-black group-hover:-translate-y-0.5 transition-transform"
+              />
+              <span className="absolute right-3 text-[11px] font-medium text-slate-700 hidden sm:inline truncate max-w-[100px]">
+                {prevClub.code}
+              </span>
+            </button>
+          )}
 
           {/* CENTER FEATURED CREST STAGE */}
           <div className="bg-[#a6aab0] h-44 sm:h-48 flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -141,21 +152,23 @@ const TeamColumnPanel: React.FC<TeamColumnPanelProps> = ({
           </div>
 
           {/* BOTTOM DOWN BUTTON (v) */}
-          <button
-            type="button"
-            onClick={handleStepDown}
-            aria-label={`${sideTitle} sonraki takım: ${nextClub.name}`}
-            className="w-full h-11 bg-[#cbd5e1] hover:bg-[#b8c6d8] active:bg-[#a6b7cd] text-slate-950 flex items-center justify-center relative transition-colors border-t border-slate-400/40 group"
-          >
-            <ChevronDown
-              size={28}
-              strokeWidth={3}
-              className="text-black group-hover:translate-y-0.5 transition-transform"
-            />
-            <span className="absolute right-3 text-[11px] font-medium text-slate-700 hidden sm:inline truncate max-w-[100px]">
-              {nextClub.code}
-            </span>
-          </button>
+          {canEditClub && (
+            <button
+              type="button"
+              onClick={handleStepDown}
+              aria-label={`${sideTitle} sonraki takım: ${nextClub.name}`}
+              className="w-full h-11 bg-[#cbd5e1] hover:bg-[#b8c6d8] active:bg-[#a6b7cd] text-slate-950 flex items-center justify-center relative transition-colors border-t border-slate-400/40 group"
+            >
+              <ChevronDown
+                size={28}
+                strokeWidth={3}
+                className="text-black group-hover:translate-y-0.5 transition-transform"
+              />
+              <span className="absolute right-3 text-[11px] font-medium text-slate-700 hidden sm:inline truncate max-w-[100px]">
+                {nextClub.code}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -211,18 +224,20 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
   const [aiDifficulty, setAiDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
   const [matchFormat, setMatchFormat] = useState<MatchFormat>(defaultSettings.matchFormat || '1v1');
   const [stadiumType, setStadiumType] = useState<StadiumType>(defaultSettings.stadiumType || 'olympic');
+  const [pitchColor, setPitchColor] = useState<PitchColor>(defaultSettings.pitchColor || 'green');
   const [cameraMode] = useState<CameraMode>(defaultSettings.cameraMode || 'dynamic');
   const [enableSetPieces, setEnableSetPieces] = useState<boolean>(defaultSettings.enableSetPieces !== false);
   const [playerSpeedMultiplier, setPlayerSpeedMultiplier] = useState<PlayerSpeedMultiplier>(
     defaultSettings.playerSpeedMultiplier || 1
   );
   const [hostLocalPlayers, setHostLocalPlayers] = useState<1 | 2>(defaultSettings.hostLocalPlayers || 1);
-  const [guestLocalPlayers, setGuestLocalPlayers] = useState<1 | 2>(defaultSettings.guestLocalPlayers || 1);
 
   // Online Room State
+  const [playerNameInput, setPlayerNameInput] = useState('');
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [joinLoading, setJoinLoading] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
 
   const handleSelectHomeClub = (clubId: ClubId) => {
     setHomeClub(clubId);
@@ -250,6 +265,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
       awayClub,
       aiDifficulty,
       theme: 'classic',
+      pitchColor,
       goldenGoalOnTie: true,
       stadiumType,
       cameraMode,
@@ -271,6 +287,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
       awayClub,
       aiDifficulty: 'normal',
       theme: 'classic',
+      pitchColor,
       goldenGoalOnTie: true,
       stadiumType,
       cameraMode,
@@ -282,25 +299,29 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
     });
   };
 
-  const handleCreateOnlineRoom = () => {
+  const handleCreateOnlineRoom = async () => {
     soundManager.playClick();
-    onlineManager.createRoom({
-      durationSeconds: duration,
-      mode: 'online_room',
-      userTeam: 'red',
-      homeClub,
-      awayClub,
-      aiDifficulty: 'normal',
-      theme: 'classic',
-      goldenGoalOnTie: true,
-      stadiumType,
-      cameraMode,
-      matchFormat,
-      enableSetPieces,
-      playerSpeedMultiplier,
-      hostLocalPlayers,
-      guestLocalPlayers,
-    });
+    setCreateLoading(true);
+    await onlineManager.createRoom(
+      {
+        durationSeconds: duration,
+        mode: 'online_room',
+        userTeam: 'red',
+        homeClub,
+        awayClub,
+        aiDifficulty: 'normal',
+        theme: 'classic',
+        pitchColor,
+        goldenGoalOnTie: true,
+        stadiumType,
+        cameraMode,
+        matchFormat,
+        enableSetPieces,
+        playerSpeedMultiplier,
+      },
+      playerNameInput.trim() || undefined
+    );
+    setCreateLoading(false);
   };
 
   const handleJoinOnlineRoom = async (e: React.FormEvent) => {
@@ -308,7 +329,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
     if (!joinCodeInput.trim()) return;
     soundManager.playClick();
     setJoinLoading(true);
-    await onlineManager.joinRoom(joinCodeInput, { awayClub, guestLocalPlayers });
+    await onlineManager.joinRoom(joinCodeInput, playerNameInput.trim() || undefined);
     setJoinLoading(false);
   };
 
@@ -327,6 +348,23 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
 
   const activeHome = CLUBS[homeClub] || CLUBS.liverpool;
   const activeAway = CLUBS[awayClub] || CLUBS.ipswich;
+  const onlineHome = CLUBS[onlineRoomState.homeClub] || CLUBS.liverpool;
+  const onlineAway = CLUBS[onlineRoomState.awayClub] || CLUBS.ipswich;
+
+  const onlinePlayers = onlineRoomState.players || [];
+  const onlineRedPlayers = onlinePlayers.filter((p) => p.team === 'red');
+  const onlineBluePlayers = onlinePlayers.filter((p) => p.team === 'blue');
+  const roomSettings = onlineRoomState.roomSettings || {};
+  const roomDuration = roomSettings.durationSeconds ?? duration;
+  const roomStadium = (roomSettings.stadiumType as StadiumType) || stadiumType;
+  const roomPitchColor = (roomSettings.pitchColor as PitchColor) || pitchColor;
+  const roomSetPieces = roomSettings.enableSetPieces !== undefined ? roomSettings.enableSetPieces : enableSetPieces;
+  const roomSpeed = (roomSettings.playerSpeedMultiplier as PlayerSpeedMultiplier) || playerSpeedMultiplier;
+
+  const redCaptainId = onlineRedPlayers[0]?.id;
+  const blueCaptainId = onlineBluePlayers[0]?.id;
+  const canEditOnlineRed = onlineRoomState.isHost || (!!redCaptainId && redCaptainId === onlineRoomState.myId);
+  const canEditOnlineBlue = onlineRoomState.isHost || (!!blueCaptainId && blueCaptainId === onlineRoomState.myId);
 
   return (
     <div
@@ -365,10 +403,18 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
             <PremierLeagueLion className="w-6 h-6 text-white" />
             <div>
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-white leading-none">
-                Takım Seçimi
+                {activeTab === 'online'
+                  ? onlineRoomState.code
+                    ? `Online Oda · ${onlineRoomState.code}`
+                    : 'Online Oda'
+                  : 'Takım Seçimi'}
               </h1>
               <p className="text-[11px] font-medium text-blue-200 mt-0.5">
-                Premier League · {activeHome.code} vs {activeAway.code}
+                {activeTab === 'online'
+                  ? onlineRoomState.code
+                    ? `Premier League · ${onlineHome.code} vs ${onlineAway.code} (${onlinePlayers.length}/8)`
+                    : 'Premier League · Oda Oluştur veya Katıl'
+                  : `Premier League · ${activeHome.code} vs ${activeAway.code}`}
               </p>
             </div>
           </div>
@@ -616,8 +662,8 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Speed Slider + Set Pieces Toggle */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+                {/* Speed Slider + Pitch Color + Set Pieces Toggle */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
                   <SpeedSliderNav
                     value={playerSpeedMultiplier}
                     onChange={setPlayerSpeedMultiplier}
@@ -625,13 +671,56 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
                     theme="sports"
                   />
 
-                  <div className="flex items-center justify-between gap-4 bg-slate-50 px-3.5 py-3 rounded-md border border-slate-200">
+                  <div className="flex items-center justify-between gap-3 bg-slate-50 px-3.5 py-3 rounded-md border border-slate-200">
+                    <div>
+                      <span className="block text-xs font-semibold text-slate-800">
+                        Saha Çimi
+                      </span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5">
+                        Zemin rengi seçimi
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-white border border-slate-200 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundManager.playClick();
+                          setPitchColor('green');
+                        }}
+                        className={`h-8 px-2.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                          pitchColor === 'green'
+                            ? 'bg-[#0b46b5] text-white'
+                            : 'text-slate-600 hover:text-[#04215d]'
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-sm bg-[#247d40] border border-white/40 shrink-0" />
+                        <span>Yeşil</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundManager.playClick();
+                          setPitchColor('black');
+                        }}
+                        className={`h-8 px-2.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                          pitchColor === 'black'
+                            ? 'bg-[#0b46b5] text-white'
+                            : 'text-slate-600 hover:text-[#04215d]'
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-sm bg-[#161920] border border-white/40 shrink-0" />
+                        <span>Siyah</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 bg-slate-50 px-3.5 py-3 rounded-md border border-slate-200">
                     <div>
                       <span className="block text-xs font-semibold text-slate-800">
                         Taç, Korner ve Aut
                       </span>
                       <span className="block text-[11px] text-slate-500 mt-0.5">
-                        Kapalıyken top saha çizgilerinden duvar gibi seker
+                        Kapalıyken çizgilerden seker
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-white border border-slate-200 shrink-0">
@@ -641,7 +730,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
                           soundManager.playClick();
                           setEnableSetPieces(true);
                         }}
-                        className={`h-8 px-3 rounded text-xs font-semibold transition-colors ${
+                        className={`h-8 px-2.5 rounded text-xs font-semibold transition-colors ${
                           enableSetPieces
                             ? 'bg-[#0b46b5] text-white'
                             : 'text-slate-600 hover:text-[#04215d]'
@@ -655,7 +744,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
                           soundManager.playClick();
                           setEnableSetPieces(false);
                         }}
-                        className={`h-8 px-3 rounded text-xs font-semibold transition-colors ${
+                        className={`h-8 px-2.5 rounded text-xs font-semibold transition-colors ${
                           !enableSetPieces
                             ? 'bg-[#0b46b5] text-white'
                             : 'text-slate-600 hover:text-[#04215d]'
@@ -711,292 +800,452 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
           )}
 
           {/* ============================================================== */}
-          {/* TAB 3: ONLINE ODA (CLASSIC BLUE/WHITE TWO-COLUMN SPORTS LAYOUT) */}
+          {/* TAB 3: ONLINE ODA                                               */}
+          {/* - Before joining/creating: ONLY Oda Oluştur & Odaya Katıl       */}
+          {/* - After joining/creating: Pick club & join team up to 4v4      */}
           {/* ============================================================== */}
           {activeTab === 'online' && (
-            <div>
-              {onlineRoomState.isHost && onlineRoomState.code ? (
-                <div className="p-6 bg-white rounded-lg border-2 border-white shadow-lg text-center space-y-4 max-w-lg mx-auto">
-                  <div className="text-xs font-mono font-semibold uppercase tracking-wider text-[#0b46b5]">
-                    Oda Hazır · Kodu Paylaş
+            <div className="space-y-4">
+              {!onlineRoomState.code ? (
+                <div className="max-w-3xl mx-auto space-y-4 py-2">
+                  {/* Optional Player Name */}
+                  <div className="bg-white/10 border border-blue-300/25 rounded-lg p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <label
+                      htmlFor="online-player-name"
+                      className="text-xs font-semibold text-white shrink-0"
+                    >
+                      Oyuncu Adın
+                    </label>
+                    <input
+                      id="online-player-name"
+                      type="text"
+                      placeholder="İsteğe bağlı (Örn: Kaptan)"
+                      value={playerNameInput}
+                      onChange={(e) => setPlayerNameInput(e.target.value)}
+                      maxLength={16}
+                      className="flex-1 h-9 bg-white border border-blue-200 rounded-md px-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#38bdf8]"
+                    />
                   </div>
 
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="font-mono font-bold text-3xl tracking-[0.22em] text-[#041d56] bg-blue-50 px-5 py-2.5 rounded-md border border-blue-200">
-                      {onlineRoomState.code}
-                    </span>
+                  {/* ONLY TWO CARDS: ODA OLUŞTUR & ODAYA KATIL */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+                    {/* ODA OLUŞTUR */}
+                    <div className="bg-white rounded-lg border-2 border-white shadow-lg p-5 flex flex-col justify-between gap-4">
+                      <div>
+                        <div className="bg-gradient-to-r from-[#04215d] via-[#0a3c9e] to-[#04215d] -mx-5 -mt-5 px-5 py-3 mb-4 border-b-2 border-[#38bdf8]/50">
+                          <h2 className="text-base font-bold text-white">Oda Oluştur</h2>
+                          <p className="text-[11px] text-blue-100/90 mt-0.5">
+                            Odayı kur, takım seçimleri içeride başlasın
+                          </p>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          Yeni bir çevrimiçi oda oluşturup 5 haneli kodu arkadaşlarınla paylaş. Herkes odaya girdikten sonra takımlar ve kurallar içeride seçilir (4v4&apos;e kadar).
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleCreateOnlineRoom}
+                        disabled={createLoading}
+                        className="w-full h-11 rounded-md bg-[#0b46b5] hover:bg-[#083898] disabled:opacity-50 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                      >
+                        {createLoading ? (
+                          <Loader2 size={15} className="animate-spin" />
+                        ) : (
+                          <>
+                            <span>Oda Oluştur</span>
+                            <ArrowRight size={15} />
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* ODAYA KATIL */}
+                    <form
+                      onSubmit={handleJoinOnlineRoom}
+                      className="bg-white rounded-lg border-2 border-white shadow-lg p-5 flex flex-col justify-between gap-4"
+                    >
+                      <div>
+                        <div className="bg-gradient-to-r from-[#04215d] via-[#0a3c9e] to-[#04215d] -mx-5 -mt-5 px-5 py-3 mb-4 border-b-2 border-[#38bdf8]/50">
+                          <h2 className="text-base font-bold text-white">Odaya Katıl</h2>
+                          <p className="text-[11px] text-blue-100/90 mt-0.5">
+                            Mevcut odaya kod ile bağlan (4v4&apos;e kadar)
+                          </p>
+                        </div>
+                        <label
+                          htmlFor="online-join-code"
+                          className="block text-xs font-semibold text-slate-700 mb-1.5"
+                        >
+                          Oda Kodu
+                        </label>
+                        <input
+                          id="online-join-code"
+                          type="text"
+                          placeholder="Örn: HAX82"
+                          value={joinCodeInput}
+                          onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+                          maxLength={6}
+                          className="w-full h-11 bg-slate-50 border border-slate-300 rounded-md px-3 text-base text-slate-900 placeholder-slate-400 font-mono tracking-[0.2em] uppercase focus:outline-none focus:border-[#0b46b5]"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={joinLoading || !joinCodeInput.trim()}
+                        className="w-full h-11 rounded-md bg-[#0b46b5] hover:bg-[#083898] disabled:opacity-40 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                      >
+                        {joinLoading ? (
+                          <Loader2 size={15} className="animate-spin" />
+                        ) : (
+                          <>
+                            <UserPlus size={15} />
+                            <span>Odaya Katıl</span>
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </div>
+
+                  {onlineRoomState.errorMessage && (
+                    <div className="text-xs text-red-700 bg-red-50 px-4 py-2.5 rounded-md border border-red-200 text-center font-medium">
+                      {onlineRoomState.errorMessage}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* IN-ROOM HEADER BAR */}
+                  <div className="bg-white rounded-lg border-2 border-white shadow-md px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="text-xs font-semibold text-slate-600">Oda Kodu:</span>
+                      <span className="font-mono font-bold text-lg tracking-[0.2em] text-[#041d56] bg-blue-50 px-3 py-1 rounded border border-blue-200">
+                        {onlineRoomState.code}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyCode}
+                        className="h-8 px-2.5 rounded bg-[#0b46b5] hover:bg-[#083898] text-white text-xs font-semibold transition-colors flex items-center gap-1"
+                        title="Kodu Kopyala"
+                      >
+                        {copied ? <Check size={13} /> : <Copy size={13} />}
+                        <span>{copied ? 'Kopyalandı' : 'Kopyala'}</span>
+                      </button>
+                      <span className="text-xs font-mono font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded border border-slate-200 tabular-nums">
+                        {onlinePlayers.length}/8 Oyuncu (4v4&apos;e kadar)
+                      </span>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={handleCopyCode}
-                      className="h-12 w-12 rounded-md bg-[#0b46b5] hover:bg-[#083898] text-white transition-colors flex items-center justify-center"
-                      title="Kodu Kopyala"
+                      onClick={() => {
+                        soundManager.playClick();
+                        onlineManager.leaveRoom();
+                      }}
+                      className="h-8 px-3 rounded bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 hover:border-red-200 text-xs font-semibold transition-colors flex items-center gap-1.5"
                     >
-                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      <LogOut size={13} />
+                      <span>Odadan Ayrıl</span>
                     </button>
                   </div>
 
-                  <p className="text-xs text-slate-600">
-                    Arkadaşın bu kodu Odaya Katıl alanına girerek Deplasman takımına bağlanabilir.
-                  </p>
+                  {/* IN-ROOM TEAM & SIDE SELECTION (İÇ SAHA | DEPLASMAN UP TO 4v4) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+                    {([
+                      {
+                        side: 'red' as TeamId,
+                        title: `İç Saha (${onlineRedPlayers.length}/4)`,
+                        subtitle: canEditOnlineRed
+                          ? 'Kulübünü Seç veya Bu Takıma Katıl'
+                          : 'Bu Tarafa Katıl (4 Oyuncuya Kadar)',
+                        clubId: onlineRoomState.homeClub,
+                        players: onlineRedPlayers,
+                        canEdit: canEditOnlineRed,
+                      },
+                      {
+                        side: 'blue' as TeamId,
+                        title: `Deplasman (${onlineBluePlayers.length}/4)`,
+                        subtitle: canEditOnlineBlue
+                          ? 'Kulübünü Seç veya Bu Takıma Katıl'
+                          : 'Bu Tarafa Katıl (4 Oyuncuya Kadar)',
+                        clubId: onlineRoomState.awayClub,
+                        players: onlineBluePlayers,
+                        canEdit: canEditOnlineBlue,
+                      },
+                    ]).map((col) => {
+                      const isMySide = onlineRoomState.myTeam === col.side;
+                      const isSideFull = col.players.length >= 4;
+                      return (
+                        <TeamColumnPanel
+                          key={col.side}
+                          sideTitle={col.title}
+                          sideSubtitle={col.subtitle}
+                          selectedClubId={col.clubId}
+                          canEditClub={col.canEdit}
+                          onSelectClub={(clubId) => onlineManager.selectClub(col.side, clubId)}
+                          footerSlot={
+                            <div className="space-y-2.5 pt-1">
+                              {/* 4 Player Slots */}
+                              <div className="space-y-1">
+                                {[0, 1, 2, 3].map((slotIdx) => {
+                                  const occupant = col.players[slotIdx];
+                                  const isMe = occupant?.id === onlineRoomState.myId;
+                                  return (
+                                    <div
+                                      key={slotIdx}
+                                      className={`flex items-center justify-between px-2.5 py-1.5 rounded border text-xs ${
+                                        occupant
+                                          ? isMe
+                                            ? 'bg-blue-50 border-[#0b46b5]/50 text-[#041d56] font-semibold'
+                                            : 'bg-slate-50 border-slate-200 text-slate-800'
+                                          : 'bg-slate-50/50 border-dashed border-slate-200 text-slate-400'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="font-mono text-[10px] text-slate-400 tabular-nums">
+                                          #{slotIdx + 1}
+                                        </span>
+                                        <span className="truncate">
+                                          {occupant ? occupant.name : 'Boş Oyuncu Yeri'}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        {occupant?.isHost && (
+                                          <span className="text-[10px] font-mono bg-[#041d56] text-white px-1.5 py-0.5 rounded">
+                                            KURUCU
+                                          </span>
+                                        )}
+                                        {isMe && (
+                                          <span className="text-[10px] font-mono bg-[#0b46b5] text-white px-1.5 py-0.5 rounded">
+                                            SEN
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
 
-                  {onlineRoomState.status === 'waiting_for_peer' && (
-                    <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#04215d] bg-blue-50 py-2.5 rounded-md border border-blue-200">
-                      <Loader2 size={14} className="animate-spin text-[#0b46b5]" />
-                      <span>Rakip oyuncunun bağlanması bekleniyor</span>
+                              {/* Join / Selected Team Button */}
+                              <button
+                                type="button"
+                                disabled={isMySide || isSideFull}
+                                onClick={() => {
+                                  soundManager.playClick();
+                                  onlineManager.switchTeam(col.side);
+                                }}
+                                className={`w-full h-9 rounded-md font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
+                                  isMySide
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-default'
+                                    : isSideFull
+                                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                      : 'bg-[#0b46b5] hover:bg-[#083898] text-white'
+                                }`}
+                              >
+                                {isMySide ? (
+                                  <>
+                                    <Check size={14} />
+                                    <span>Bu Takımdasın ({col.players.length}/4)</span>
+                                  </>
+                                ) : isSideFull ? (
+                                  <span>Takım Dolu (4/4)</span>
+                                ) : (
+                                  <>
+                                    <UserPlus size={14} />
+                                    <span>Bu Takıma Katıl ({col.players.length}/4)</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* IN-ROOM MATCH SETTINGS (Host edits, guests preview) */}
+                  <div className="bg-white rounded-lg border-2 border-white/90 shadow-md p-4 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {/* Stadium Size */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Stadyum Boyutu
+                        </label>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { id: 'olympic', label: 'Olimpik' },
+                            { id: 'grand_stadium', label: 'Grand' },
+                            { id: 'classic', label: 'Klasik' },
+                          ].map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              disabled={!onlineRoomState.isHost}
+                              onClick={() => {
+                                soundManager.playClick();
+                                setStadiumType(item.id as StadiumType);
+                                onlineManager.updateRoomSettings({ stadiumType: item.id as StadiumType });
+                              }}
+                              className={`h-8 px-2 rounded text-xs font-semibold border transition-colors whitespace-nowrap disabled:cursor-default ${
+                                roomStadium === item.id
+                                  ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
+                                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Match Duration */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Maç Süresi
+                        </label>
+                        <div className="grid grid-cols-4 gap-1">
+                          {[
+                            { label: '1dk', sec: 60 },
+                            { label: '2dk', sec: 120 },
+                            { label: '3dk', sec: 180 },
+                            { label: '5dk', sec: 300 },
+                          ].map((item) => (
+                            <button
+                              key={item.sec}
+                              type="button"
+                              disabled={!onlineRoomState.isHost}
+                              onClick={() => {
+                                soundManager.playClick();
+                                setDuration(item.sec);
+                                onlineManager.updateRoomSettings({ durationSeconds: item.sec });
+                              }}
+                              className={`h-8 rounded text-xs font-mono font-semibold tabular-nums border transition-colors disabled:cursor-default ${
+                                roomDuration === item.sec
+                                  ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
+                                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Pitch Color */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Saha Çimi
+                        </label>
+                        <div className="grid grid-cols-2 gap-1">
+                          {([
+                            { id: 'green', label: 'Yeşil', dot: 'bg-[#247d40]' },
+                            { id: 'black', label: 'Siyah', dot: 'bg-[#161920]' },
+                          ] as const).map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              disabled={!onlineRoomState.isHost}
+                              onClick={() => {
+                                soundManager.playClick();
+                                setPitchColor(item.id);
+                                onlineManager.updateRoomSettings({ pitchColor: item.id });
+                              }}
+                              className={`h-8 px-2 rounded text-xs font-semibold border flex items-center justify-center gap-1.5 transition-colors disabled:cursor-default ${
+                                roomPitchColor === item.id
+                                  ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
+                                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <span className={`w-2.5 h-2.5 rounded-sm border border-white/40 ${item.dot}`} />
+                              <span>{item.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Set Pieces */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Taç, Korner ve Aut
+                        </label>
+                        <div className="grid grid-cols-2 gap-1">
+                          {[
+                            { val: true, label: 'Açık' },
+                            { val: false, label: 'Kapalı' },
+                          ].map((item) => (
+                            <button
+                              key={String(item.val)}
+                              type="button"
+                              disabled={!onlineRoomState.isHost}
+                              onClick={() => {
+                                soundManager.playClick();
+                                setEnableSetPieces(item.val);
+                                onlineManager.updateRoomSettings({ enableSetPieces: item.val });
+                              }}
+                              className={`h-8 rounded text-xs font-semibold border transition-colors disabled:cursor-default ${
+                                roomSetPieces === item.val
+                                  ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
+                                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {onlineRoomState.isHost && (
+                      <SpeedSliderNav
+                        value={roomSpeed}
+                        onChange={(spd) => {
+                          setPlayerSpeedMultiplier(spd);
+                          onlineManager.updateRoomSettings({ playerSpeedMultiplier: spd });
+                        }}
+                        variant="compact"
+                        theme="sports"
+                      />
+                    )}
+                  </div>
+
+                  {onlineRoomState.errorMessage && (
+                    <div className="text-xs text-red-700 bg-red-50 px-4 py-2 rounded-md border border-red-200 text-center font-medium">
+                      {onlineRoomState.errorMessage}
                     </div>
                   )}
 
-                  {onlineRoomState.status === 'ready' && (
-                    <div className="space-y-3 pt-1">
-                      <div className="text-xs text-emerald-700 font-semibold bg-emerald-50 py-2.5 rounded-md border border-emerald-200">
-                        Rakip odaya bağlandı · Başlamaya hazır
-                      </div>
+                  {/* START / WAIT FOOTER */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div className="flex items-center gap-2 text-xs text-blue-100">
+                      <Gamepad2 size={14} className="text-sky-300 shrink-0" />
+                      <span>
+                        Kontrol: <strong className="font-mono text-white">WASD / Yönler</strong>
+                        <span className="mx-1.5 text-blue-300/60">·</span>
+                        Şut: <strong className="font-mono text-white">Boşluk / P</strong>
+                      </span>
+                    </div>
+
+                    {onlineRoomState.isHost ? (
                       <button
                         type="button"
+                        disabled={onlineRedPlayers.length === 0 || onlineBluePlayers.length === 0}
                         onClick={handleStartOnlineMatch}
-                        className="w-full h-11 rounded-md bg-[#0b46b5] hover:bg-[#083898] text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                        className="h-11 px-7 rounded-md bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed text-[#041d56] font-bold text-sm shadow-[0_6px_20px_rgba(0,0,0,0.3)] transition-all flex items-center justify-center gap-2 ml-auto"
                       >
                         <Play size={15} fill="currentColor" />
-                        <span>Maçı Başlat</span>
+                        <span>
+                          {onlineRedPlayers.length > 0 && onlineBluePlayers.length > 0
+                            ? `Maçı Başlat (${onlineRedPlayers.length}v${onlineBluePlayers.length})`
+                            : 'Her İki Takımda En Az 1 Oyuncu Olmalı'}
+                        </span>
                       </button>
-                    </div>
-                  )}
-                </div>
-              ) : onlineRoomState.status === 'ready' && !onlineRoomState.isHost ? (
-                <div className="p-6 bg-white rounded-lg border-2 border-white shadow-lg text-center space-y-3 max-w-lg mx-auto">
-                  <div className="text-xs text-[#041d56] font-semibold bg-blue-50 py-2.5 rounded-md border border-blue-200 font-mono">
-                    Oda {onlineRoomState.code} · Bağlantı kuruldu
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    Ev sahibinin maçı başlatması bekleniyor. Deplasman takımı olarak sahaya çıkacaksın.
-                  </p>
-                  <div className="flex items-center justify-center gap-2 text-[#0b46b5] text-xs font-medium pt-1">
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Hazır bekleniyor</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-                  {/* LEFT COLUMN: İÇ SAHA (HOST CREATE ROOM) */}
-                  <TeamColumnPanel
-                    sideTitle="İç Saha · Oda Kur"
-                    sideSubtitle="Ev Sahibi Takımı Seç"
-                    selectedClubId={homeClub}
-                    onSelectClub={setHomeClub}
-                    footerSlot={
-                      <div className="space-y-2.5 pt-1">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="block text-[11px] font-semibold text-slate-600 mb-1">
-                              Format
-                            </span>
-                            <div className="grid grid-cols-3 gap-1">
-                              {(['1v1', '2v1', '2v2'] as MatchFormat[]).map((f) => (
-                                <button
-                                  key={f}
-                                  type="button"
-                                  onClick={() => {
-                                    soundManager.playClick();
-                                    setMatchFormat(f);
-                                  }}
-                                  className={`h-8 rounded text-xs font-mono font-semibold border transition-colors ${
-                                    matchFormat === f
-                                      ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
-                                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50'
-                                  }`}
-                                >
-                                  {f}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="block text-[11px] font-semibold text-slate-600 mb-1">
-                              Saha
-                            </span>
-                            <div className="grid grid-cols-3 gap-1">
-                              {[
-                                { id: 'olympic', label: 'Olimpik' },
-                                { id: 'grand_stadium', label: 'Grand' },
-                                { id: 'classic', label: 'Klasik' },
-                              ].map((s) => (
-                                <button
-                                  key={s.id}
-                                  type="button"
-                                  onClick={() => {
-                                    soundManager.playClick();
-                                    setStadiumType(s.id as StadiumType);
-                                  }}
-                                  className={`h-8 rounded text-[11px] font-semibold border transition-colors ${
-                                    stadiumType === s.id
-                                      ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
-                                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50'
-                                  }`}
-                                >
-                                  {s.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              soundManager.playClick();
-                              setHostLocalPlayers(1);
-                            }}
-                            className={`h-8 rounded text-xs font-semibold border transition-colors ${
-                              hostLocalPlayers === 1
-                                ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
-                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50'
-                            }`}
-                          >
-                            1 Oyuncu (Bu PC)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              soundManager.playClick();
-                              setHostLocalPlayers(2);
-                            }}
-                            className={`h-8 rounded text-xs font-semibold border transition-colors ${
-                              hostLocalPlayers === 2
-                                ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
-                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50'
-                            }`}
-                          >
-                            2 Oyuncu (Aynı PC)
-                          </button>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-2 bg-slate-50 px-3 py-2 rounded border border-slate-200">
-                          <span className="text-[11px] font-semibold text-slate-700">
-                            Taç, Korner ve Aut
-                          </span>
-                          <div className="grid grid-cols-2 gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                soundManager.playClick();
-                                setEnableSetPieces(true);
-                              }}
-                              className={`h-7 px-2.5 rounded text-[11px] font-semibold transition-colors ${
-                                enableSetPieces
-                                  ? 'bg-[#0b46b5] text-white'
-                                  : 'text-slate-600 hover:text-[#04215d]'
-                              }`}
-                            >
-                              Açık
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                soundManager.playClick();
-                                setEnableSetPieces(false);
-                              }}
-                              className={`h-7 px-2.5 rounded text-[11px] font-semibold transition-colors ${
-                                !enableSetPieces
-                                  ? 'bg-[#0b46b5] text-white'
-                                  : 'text-slate-600 hover:text-[#04215d]'
-                              }`}
-                            >
-                              Kapalı
-                            </button>
-                          </div>
-                        </div>
-
-                        <SpeedSliderNav
-                          value={playerSpeedMultiplier}
-                          onChange={setPlayerSpeedMultiplier}
-                          variant="compact"
-                          theme="sports"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={handleCreateOnlineRoom}
-                          className="w-full h-10 rounded-md bg-[#0b46b5] hover:bg-[#083898] text-white font-bold text-xs sm:text-sm transition-colors flex items-center justify-center gap-2"
-                        >
-                          <span>Oda Kur ve Kod Al</span>
-                          <ArrowRight size={14} />
-                        </button>
+                    ) : (
+                      <div className="h-10 px-4 rounded-md bg-[#041d56] border border-blue-300/30 text-blue-100 text-xs font-medium flex items-center gap-2 ml-auto">
+                        <Loader2 size={14} className="animate-spin text-sky-300" />
+                        <span>Kurucunun maçı başlatması bekleniyor</span>
                       </div>
-                    }
-                  />
-
-                  {/* RIGHT COLUMN: DEPLASMAN (JOIN ROOM) */}
-                  <TeamColumnPanel
-                    sideTitle="Deplasman · Odaya Katıl"
-                    sideSubtitle="Misafir Takımı Seç"
-                    selectedClubId={awayClub}
-                    onSelectClub={setAwayClub}
-                    footerSlot={
-                      <form onSubmit={handleJoinOnlineRoom} className="space-y-2.5 pt-1">
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              soundManager.playClick();
-                              setGuestLocalPlayers(1);
-                            }}
-                            className={`h-8 rounded text-xs font-semibold border transition-colors ${
-                              guestLocalPlayers === 1
-                                ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
-                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50'
-                            }`}
-                          >
-                            1 Oyuncu (Bu PC)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              soundManager.playClick();
-                              setGuestLocalPlayers(2);
-                            }}
-                            className={`h-8 rounded text-xs font-semibold border transition-colors ${
-                              guestLocalPlayers === 2
-                                ? 'bg-[#0b46b5] text-white border-[#0b46b5]'
-                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50'
-                            }`}
-                          >
-                            2 Oyuncu (Aynı PC)
-                          </button>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Oda Kodu (Örn: HAX82)"
-                            value={joinCodeInput}
-                            onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-                            maxLength={6}
-                            className="flex-1 h-10 bg-slate-50 border border-slate-300 rounded-md px-3 text-sm text-slate-900 placeholder-slate-400 font-mono tracking-wider uppercase focus:outline-none focus:border-[#0b46b5]"
-                          />
-                          <button
-                            type="submit"
-                            disabled={joinLoading || !joinCodeInput.trim()}
-                            className="h-10 px-5 rounded-md bg-[#0b46b5] hover:bg-[#083898] disabled:opacity-40 text-white font-bold text-xs sm:text-sm transition-colors flex items-center gap-1.5 shrink-0"
-                          >
-                            {joinLoading ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <span>Katıl</span>
-                            )}
-                          </button>
-                        </div>
-
-                        {onlineRoomState.errorMessage && (
-                          <div className="text-xs text-red-700 bg-red-50 px-3 py-2 rounded-md border border-red-200">
-                            {onlineRoomState.errorMessage}
-                          </div>
-                        )}
-                      </form>
-                    }
-                  />
-                </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           )}

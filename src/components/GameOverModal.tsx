@@ -81,38 +81,45 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         </div>
 
         {/* Match Statistics */}
-        <div className="bg-[#0a0a0a] rounded-lg p-4 border border-zinc-800 mb-6 text-xs space-y-2.5">
+        <div className="bg-[#0a0a0a] rounded-lg p-4 border border-zinc-800 mb-6 text-xs space-y-3">
           <div className="flex justify-between items-center pb-2 border-b border-zinc-800 text-[11px] font-mono uppercase text-[#888888]">
-            <span className="text-white">{home.code}</span>
-            <span>İstatistikler</span>
-            <span className="text-white">{away.code}</span>
+            <span className="text-white font-semibold">{home.code}</span>
+            <span>Maç İstatistikleri</span>
+            <span className="text-white font-semibold">{away.code}</span>
           </div>
 
-          <div className="flex justify-between items-center">
-            <span className="font-mono tabular-nums font-medium text-white">{stats.redShots}</span>
-            <span className="text-[#888888]">Toplam Şut</span>
-            <span className="font-mono tabular-nums font-medium text-white">{stats.blueShots}</span>
-          </div>
+          {[
+            { label: 'Toplam Şut', red: stats.redShots, blue: stats.blueShots, suffix: '' },
+            { label: 'Korner', red: stats.redCorners, blue: stats.blueCorners, suffix: '' },
+            { label: 'Taç', red: stats.redThrowIns, blue: stats.blueThrowIns, suffix: '' },
+            { label: 'Topla Oynama', red: stats.redPossession, blue: stats.bluePossession, suffix: '%', prefix: true },
+          ].map((row) => {
+            const total = row.red + row.blue;
+            const redPct = total > 0 ? Math.round((row.red / total) * 100) : 50;
+            const redText = row.prefix ? `${row.suffix}${row.red}` : `${row.red}`;
+            const blueText = row.prefix ? `${row.suffix}${row.blue}` : `${row.blue}`;
+            return (
+              <div key={row.label} className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono tabular-nums font-semibold text-white">{redText}</span>
+                  <span className="text-[#888888] font-medium">{row.label}</span>
+                  <span className="font-mono tabular-nums font-semibold text-white">{blueText}</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-zinc-900 overflow-hidden flex">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{ width: `${redPct}%`, backgroundColor: home.color }}
+                  />
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{ width: `${100 - redPct}%`, backgroundColor: away.color }}
+                  />
+                </div>
+              </div>
+            );
+          })}
 
-          <div className="flex justify-between items-center">
-            <span className="font-mono tabular-nums font-medium text-white">{stats.redCorners}</span>
-            <span className="text-[#888888]">Korner</span>
-            <span className="font-mono tabular-nums font-medium text-white">{stats.blueCorners}</span>
-          </div>
-
-          <div className="flex justify-between items-center">
-            <span className="font-mono tabular-nums font-medium text-white">{stats.redThrowIns}</span>
-            <span className="text-[#888888]">Taç</span>
-            <span className="font-mono tabular-nums font-medium text-white">{stats.blueThrowIns}</span>
-          </div>
-
-          <div className="flex justify-between items-center">
-            <span className="font-mono tabular-nums font-medium text-white">%{stats.redPossession}</span>
-            <span className="text-[#888888]">Topla Oynama</span>
-            <span className="font-mono tabular-nums font-medium text-white">%{stats.bluePossession}</span>
-          </div>
-
-          <div className="flex justify-between items-center pt-1.5 border-t border-zinc-800/80 text-[11px] text-[#888888]">
+          <div className="flex justify-between items-center pt-2 border-t border-zinc-800/80 text-[11px] text-[#888888]">
             <span>Maç Süresi</span>
             <span className="font-mono tabular-nums text-white">{stats.duration} sn</span>
           </div>

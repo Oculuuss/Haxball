@@ -9,14 +9,6 @@ interface ScoreboardProps {
   timeRemaining: number;
   totalDuration: number;
   isOvertime: boolean;
-  redShots: number;
-  blueShots: number;
-  redCorners?: number;
-  blueCorners?: number;
-  redThrowIns?: number;
-  blueThrowIns?: number;
-  redPossession: number;
-  bluePossession: number;
   isMuted: boolean;
   isPaused: boolean;
   isRedAi: boolean;
@@ -43,14 +35,6 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   blueScore,
   timeRemaining,
   isOvertime,
-  redShots,
-  blueShots,
-  redCorners = 0,
-  blueCorners = 0,
-  redThrowIns = 0,
-  blueThrowIns = 0,
-  redPossession,
-  bluePossession,
   isMuted,
   isPaused,
   isRedAi,
@@ -227,9 +211,9 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               : 'border-white/15 bg-[#121620]'
           }`}
         >
-          {/* 1. PREMIER LEAGUE LION & PURPLE TAB */}
-          <div className="relative flex items-center justify-center px-2.5 sm:px-3 bg-[#38003c] text-white flex-shrink-0 border-r border-black/40">
-            <PremierLeagueLion className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow" />
+          {/* 1. PREMIER LEAGUE LOGO & PURPLE TAB */}
+          <div className="relative flex items-center justify-center px-2 sm:px-2.5 bg-[#38003c] text-white flex-shrink-0 border-r border-black/40">
+            <PremierLeagueLion className="w-6 h-6 sm:w-7 sm:h-7" />
             <div className="absolute bottom-0 inset-x-0 h-1 bg-[#00ff85]" />
           </div>
 
@@ -413,34 +397,10 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
         </div>
 
         {/* ========================================================
-            MINIMALIST BROADCAST SUBTITLE & LIVE MATCH STATS BAR
+            MINIMALIST BROADCAST SUBTITLE BAR (Without Possession/Shots/Corners/Throw-ins)
            ======================================================== */}
         <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[10px] font-mono tracking-wider text-[#888888] bg-[#111111]/90 px-3 py-1 rounded-md border border-zinc-800 backdrop-blur-sm">
-          <span className="text-white font-medium tabular-nums">
-            ŞUT <span className="text-zinc-200">{redShots}-{blueShots}</span>
-          </span>
-
-          <span className="text-zinc-700">/</span>
-
-          <span className="text-white font-medium tabular-nums">
-            KORNER <span className="text-zinc-200">{redCorners}-{blueCorners}</span>
-          </span>
-
-          <span className="text-zinc-700">/</span>
-
-          <span className="text-white font-medium tabular-nums">
-            TAÇ <span className="text-zinc-200">{redThrowIns}-{blueThrowIns}</span>
-          </span>
-
-          <span className="text-zinc-700 hidden sm:inline">/</span>
-
-          <span className="hidden sm:inline text-zinc-300 tabular-nums">
-            TOPA SAHİP %{redPossession}-%{bluePossession}
-          </span>
-
-          <span className="text-zinc-700 hidden md:inline">/</span>
-
-          <span className="hidden md:inline uppercase">{stadiumLabel}</span>
+          <span className="uppercase text-zinc-300">{stadiumLabel}</span>
 
           {isOnline && roomCode && (
             <>

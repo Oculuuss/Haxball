@@ -1,39 +1,54 @@
-import { Ball, MatchSettings, Player, TeamId } from '../types/game';
+import { ClubId, MatchSettings, OnlineRosterEntry, TeamId } from '../types/game';
 
 export interface OnlineRoomState {
   code: string;
+  myId: string;
   isHost: boolean;
   myTeam: TeamId;
   status: 'disconnected' | 'connecting' | 'waiting_for_peer' | 'ready' | 'playing';
-  opponentName?: string;
+  players: OnlineRosterEntry[];
+  homeClub: ClubId;
+  awayClub: ClubId;
+  roomSettings?: Partial<MatchSettings>;
   errorMessage?: string;
+}
+
+export interface SyncPlayerSnapshot {
+  onlineId?: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  isKicking: boolean;
+  isSuperShot?: boolean;
 }
 
 export class OnlineManager {
   private ws: WebSocket | null = null;
   public roomState: OnlineRoomState = {
     code: '',
+    myId: '',
     isHost: false,
     myTeam: 'red',
     status: 'disconnected',
+    players: [],
+    homeClub: 'liverpool',
+    awayClub: 'ipswich',
   };
 
   // Callbacks
   public onRoomUpdate?: (state: OnlineRoomState) => void;
   public onGameStart?: (settings: MatchSettings) => void;
   public onRemoteInput?: (input: {
+    playerId: string;
     dx: number;
     dy: number;
     kick: boolean;
     isSuper: boolean;
-    p2?: { dx: number; dy: number; kick: boolean; isSuper: boolean };
   }) => void;
   public onSyncState?: (data: {
     ball: { x: number; y: number; vx: number; vy: number; isSuperShot?: boolean };
-    playerRed: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
-    playerBlue: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
-    playerRed2?: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
-    playerBlue2?: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
+    players?: SyncPlayerSnapshot[];
     scoreRed: number;
     scoreBlue: number;
     timeRemaining: number;
@@ -55,6 +70,7 @@ export class OnlineManager {
       const socket = new WebSocket(wsUrl);
       this.ws = socket;
       this.roomState.status = 'connecting';
+      this.roomState.errorMessage = undefined;
       this.notifyUpdate();
 
       socket.onopen = () => {
@@ -81,6 +97,33 @@ export class OnlineManager {
     });
   }
 
+  private applyRoomSnapshot(msg: any) {
+    const players: OnlineRosterEntry[] = Array.isArray(msg.players) ? msg.players : this.roomState.players;
+    const me = players.find((p) => p.id === this.roomState.myId);
+    const redCount = players.filter((p) => p.team === 'red').length;
+    const blueCount = players.filter((p) => p.team === 'blue').length;
+
+    const nextStatus: OnlineRoomState['status'] =
+      msg.state === 'playing'
+        ? 'playing'
+        : redCount >= 1 && blueCount >= 1
+          ? 'ready'
+          : 'waiting_for_peer';
+
+    this.roomState = {
+      ...this.roomState,
+      code: msg.code || this.roomState.code,
+      players,
+      myTeam: me ? me.team : this.roomState.myTeam,
+      isHost: me ? me.isHost : this.roomState.isHost,
+      homeClub: (msg.homeClub as ClubId) || this.roomState.homeClub,
+      awayClub: (msg.awayClub as ClubId) || this.roomState.awayClub,
+      roomSettings: msg.settings || this.roomState.roomSettings,
+      status: nextStatus,
+      errorMessage: undefined,
+    };
+  }
+
   private handleMessage(raw: string) {
     try {
       const msg = JSON.parse(raw);
@@ -89,32 +132,42 @@ export class OnlineManager {
         case 'room_created':
           this.roomState = {
             code: msg.code,
+            myId: msg.myId || 'p1',
             isHost: true,
             myTeam: 'red',
             status: 'waiting_for_peer',
+            players: msg.players || [],
+            homeClub: (msg.homeClub as ClubId) || 'liverpool',
+            awayClub: (msg.awayClub as ClubId) || 'ipswich',
+            roomSettings: msg.settings,
           };
-          this.notifyUpdate();
-          break;
-
-        case 'peer_joined':
-          this.roomState.status = 'ready';
-          this.roomState.opponentName = msg.guestName || 'Mavi Takım (Misafir)';
           this.notifyUpdate();
           break;
 
         case 'room_joined':
           this.roomState = {
             code: msg.code,
+            myId: msg.myId || '',
             isHost: false,
             myTeam: 'blue',
-            status: 'ready',
-            opponentName: 'Kırmızı Takım (Ev Sahibi)',
+            status: 'waiting_for_peer',
+            players: msg.players || [],
+            homeClub: (msg.homeClub as ClubId) || 'liverpool',
+            awayClub: (msg.awayClub as ClubId) || 'ipswich',
+            roomSettings: msg.settings,
           };
+          this.applyRoomSnapshot(msg);
+          this.notifyUpdate();
+          break;
+
+        case 'room_state':
+          this.applyRoomSnapshot(msg);
           this.notifyUpdate();
           break;
 
         case 'game_started':
           this.roomState.status = 'playing';
+          this.roomState.roomSettings = msg.settings || this.roomState.roomSettings;
           this.notifyUpdate();
           this.onGameStart?.(msg.settings);
           break;
@@ -136,8 +189,21 @@ export class OnlineManager {
           break;
 
         case 'peer_left':
-          this.roomState.status = this.roomState.isHost ? 'waiting_for_peer' : 'disconnected';
-          this.roomState.errorMessage = msg.message;
+          if (msg.closed) {
+            this.roomState = {
+              code: '',
+              myId: '',
+              isHost: false,
+              myTeam: 'red',
+              status: 'disconnected',
+              players: [],
+              homeClub: 'liverpool',
+              awayClub: 'ipswich',
+              errorMessage: msg.message,
+            };
+          } else {
+            this.roomState.errorMessage = msg.message;
+          }
           this.notifyUpdate();
           break;
 
@@ -152,16 +218,17 @@ export class OnlineManager {
   }
 
   private notifyUpdate() {
-    this.onRoomUpdate?.({ ...this.roomState });
+    this.onRoomUpdate?.({ ...this.roomState, players: [...this.roomState.players] });
   }
 
-  public async createRoom(settings: MatchSettings) {
+  public async createRoom(settings: MatchSettings, playerName?: string) {
     try {
       const socket = await this.connect();
       socket.send(
         JSON.stringify({
           type: 'create_room',
           settings,
+          playerName,
         })
       );
     } catch (e) {
@@ -169,19 +236,36 @@ export class OnlineManager {
     }
   }
 
-  public async joinRoom(code: string, options?: { awayClub?: string; guestLocalPlayers?: 1 | 2 }) {
+  public async joinRoom(code: string, playerName?: string) {
     try {
       const socket = await this.connect();
       socket.send(
         JSON.stringify({
           type: 'join_room',
           code: code.trim().toUpperCase(),
-          awayClub: options?.awayClub,
-          guestLocalPlayers: options?.guestLocalPlayers,
+          playerName,
         })
       );
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  public switchTeam(team: TeamId) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'switch_team', team }));
+    }
+  }
+
+  public selectClub(side: TeamId, clubId: ClubId) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'select_club', side, clubId }));
+    }
+  }
+
+  public updateRoomSettings(settings: Partial<MatchSettings>) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'update_settings', settings }));
     }
   }
 
@@ -196,7 +280,6 @@ export class OnlineManager {
     dy: number;
     kick: boolean;
     isSuper: boolean;
-    p2?: { dx: number; dy: number; kick: boolean; isSuper: boolean };
   }) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'player_input', ...input }));
@@ -230,9 +313,13 @@ export class OnlineManager {
     }
     this.roomState = {
       code: '',
+      myId: '',
       isHost: false,
       myTeam: 'red',
       status: 'disconnected',
+      players: [],
+      homeClub: 'liverpool',
+      awayClub: 'ipswich',
     };
     this.notifyUpdate();
   }

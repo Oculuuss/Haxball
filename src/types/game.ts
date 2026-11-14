@@ -7,6 +7,8 @@ export type ClubId =
   | 'brentford'
   | 'chelsea'
   | 'tottenham'
+  | 'man_city'
+  | 'man_united'
   | 'ipswich';
 
 export interface ClubInfo {
@@ -109,6 +111,34 @@ export const CLUBS: Record<ClubId, ClubInfo> = {
     logo: '/assets/aistudio/Tottenham_Hotspur_42880a6e.png',
     characterImage: '/assets/aistudio/file_00000000018481f4b1c82f006cfa8948_445c30d3.png',
   },
+  man_city: {
+    id: 'man_city',
+    name: 'Manchester City',
+    shortName: 'Man City',
+    code: 'MCI',
+    color: '#6cabdd',
+    accentColor: '#1c2c5b',
+    secondaryColor: '#ffffff',
+    glowColor: 'rgba(108, 171, 221, 0.48)',
+    ribbonGradient: 'from-[#1c2c5b] via-[#6cabdd] to-amber-300',
+    stadium: 'Etihad Stadium',
+    logo: '/assets/aistudio/20160808091023_Manchester_City_78c3fac6.png',
+    characterImage: '/assets/aistudio/20261114_123403_0000_c56a00fd.png',
+  },
+  man_united: {
+    id: 'man_united',
+    name: 'Manchester United',
+    shortName: 'Man Utd',
+    code: 'MUN',
+    color: '#da291c',
+    accentColor: '#111111',
+    secondaryColor: '#fbe122',
+    glowColor: 'rgba(218, 41, 28, 0.48)',
+    ribbonGradient: 'from-[#111111] via-[#da291c] to-amber-400',
+    stadium: 'Old Trafford',
+    logo: '/assets/aistudio/Manchester_United_FC_logo_71fd4534.png',
+    characterImage: '/assets/aistudio/20261114_123203_0000_2_f9ca77a6.jpg',
+  },
   ipswich: {
     id: 'ipswich',
     name: 'Ipswich Town',
@@ -156,6 +186,8 @@ export type GameMode = '2player' | '1player_vs_ai' | 'online_room';
 
 export type StadiumTheme = 'classic' | 'night' | 'indoor';
 
+export type PitchColor = 'green' | 'black';
+
 export type StadiumType = 'classic' | 'grand_stadium' | 'olympic';
 
 export type MatchFormat = '1v1' | '2v1' | '2v2';
@@ -176,8 +208,17 @@ export interface SetPieceState {
   barrierRadius: number;
 }
 
+export interface OnlineRosterEntry {
+  id: string;
+  name: string;
+  team: TeamId;
+  isHost: boolean;
+  slot: number;
+}
+
 export interface Player {
   id: TeamId;
+  onlineId?: string;
   name: string;
   x: number;
   y: number;
@@ -213,12 +254,22 @@ export interface Ball {
   isSuperShot: boolean;
 }
 
+export interface ReplayPlayerSnap {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  isKicking: boolean;
+  isSuperShot?: boolean;
+}
+
 export interface ReplayFrame {
   ball: { x: number; y: number; vx: number; vy: number; rotation: number; isSuperShot?: boolean };
-  playerRed: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
-  playerBlue: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
-  playerRed2?: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
-  playerBlue2?: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
+  playerRed: ReplayPlayerSnap;
+  playerBlue: ReplayPlayerSnap;
+  playerRed2?: ReplayPlayerSnap;
+  playerBlue2?: ReplayPlayerSnap;
+  extraPlayers?: ReplayPlayerSnap[];
 }
 
 export interface GoalReplay {
@@ -277,6 +328,7 @@ export interface MatchSettings {
   homeClub?: ClubId; // default 'liverpool'
   awayClub?: ClubId; // default 'ipswich'
   theme: StadiumTheme;
+  pitchColor?: PitchColor;
   goldenGoalOnTie: boolean;
   stadiumType?: StadiumType;
   cameraMode?: CameraMode;
@@ -284,6 +336,10 @@ export interface MatchSettings {
   playerSpeedMultiplier?: PlayerSpeedMultiplier;
   hostLocalPlayers?: 1 | 2;
   guestLocalPlayers?: 1 | 2;
+  onlineRedCount?: number;
+  onlineBlueCount?: number;
+  onlineRoster?: OnlineRosterEntry[];
+  localOnlinePlayerId?: string;
 }
 
 export interface MatchStats {

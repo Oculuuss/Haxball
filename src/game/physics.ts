@@ -20,36 +20,36 @@ export const STADIUM_CONFIGS: Record<StadiumType, { pitch: PitchConfig; margin: 
       y: 60,
     },
   },
-  // Devasa Grand Stadyum (Geniş Profesyonel Stadyum & Tribünler)
+  // Devasa Grand Stadyum (Önceki Olimpik Boyutunda Profesyonel Stadyum)
   grand_stadium: {
-    pitch: {
-      width: 1950,
-      height: 1150,
-      goalWidth: 250,    // scaled goal mouth
-      goalDepth: 95,     // deeper professional goal net
-      lineWidth: 5.5,
-      postRadius: 13,
-      cornerRadius: 55,
-    },
-    margin: {
-      x: 140,
-      y: 110,
-    },
-  },
-  // Olimpik Stad (Devasa Atletizm Pisti & Uluslararası Olimpik Kompleks)
-  olympic: {
     pitch: {
       width: 2550,
       height: 1440,
-      goalWidth: 320,    // extra-wide Olympic goal mouth
-      goalDepth: 110,    // deep net
+      goalWidth: 320,
+      goalDepth: 110,
       lineWidth: 6.5,
       postRadius: 15,
       cornerRadius: 70,
     },
     margin: {
-      x: 180, // spacious surround for 8-lane Tartan track & flame cauldron
+      x: 180,
       y: 130,
+    },
+  },
+  // Olimpik Stad (2 Kat Büyütülmüş Devasa Atletizm Pisti & Olimpik Kompleks)
+  olympic: {
+    pitch: {
+      width: 5100,
+      height: 2880,
+      goalWidth: 520,
+      goalDepth: 155,
+      lineWidth: 9,
+      postRadius: 18,
+      cornerRadius: 100,
+    },
+    margin: {
+      x: 360,
+      y: 260,
     },
   },
 };
@@ -59,6 +59,8 @@ export const PITCH_CONFIG: PitchConfig = STADIUM_CONFIGS.classic.pitch;
 export const PITCH_MARGIN = STADIUM_CONFIGS.classic.margin;
 
 export class GameEngine {
+  public redPlayers: Player[] = [];
+  public bluePlayers: Player[] = [];
   public playerRed!: Player;
   public playerBlue!: Player;
   public playerRed2?: Player;
@@ -101,6 +103,12 @@ export class GameEngine {
   public touchRed = { x: 0, y: 0, kick: false };
   public touchBlue = { x: 0, y: 0, kick: false };
 
+  // Remote inputs per online player ID (used by Host in 1v1..4v4 online rooms)
+  public remoteOnlineInputs = new Map<
+    string,
+    { dx: number; dy: number; kick: boolean; isSuper: boolean; prevKick: boolean }
+  >();
+
   // Replay Recording System
   public frameBuffer: ReplayFrame[] = [];
   public goalReplays: GoalReplay[] = [];
@@ -129,10 +137,48 @@ export class GameEngine {
   }
 
   public getActivePlayers(): Player[] {
-    const players: Player[] = [this.playerRed, this.playerBlue];
-    if (this.playerRed2) players.push(this.playerRed2);
-    if (this.playerBlue2) players.push(this.playerBlue2);
-    return players;
+    return [...this.redPlayers, ...this.bluePlayers];
+  }
+
+  private getFormationPositions(team: TeamId, count: number): { x: number; y: number; num: number }[] {
+    const pitch = this.pitchConfig;
+    const margin = this.pitchMargin;
+    const centerY = pitch.height / 2;
+    const pitchLeft = margin.x;
+    const pitchRight = pitch.width - margin.x;
+    const spanX = pitchRight - pitchLeft;
+    const isOlympic = this.settings.stadiumType === 'olympic';
+    const isGrand = this.settings.stadiumType === 'grand_stadium';
+    const ySpread = isOlympic ? 320 : isGrand ? 175 : 85;
+
+    let specs: { xPct: number; yOff: number; num: number }[];
+    if (count <= 1) {
+      specs = [{ xPct: 0.25, yOff: 0, num: team === 'red' ? 10 : 7 }];
+    } else if (count === 2) {
+      specs = [
+        { xPct: 0.25, yOff: -ySpread, num: team === 'red' ? 10 : 7 },
+        { xPct: 0.22, yOff: ySpread, num: 9 },
+      ];
+    } else if (count === 3) {
+      specs = [
+        { xPct: 0.28, yOff: -ySpread, num: team === 'red' ? 10 : 7 },
+        { xPct: 0.28, yOff: ySpread, num: 9 },
+        { xPct: 0.14, yOff: 0, num: 1 },
+      ];
+    } else {
+      specs = [
+        { xPct: 0.30, yOff: -ySpread * 0.9, num: team === 'red' ? 10 : 7 },
+        { xPct: 0.30, yOff: ySpread * 0.9, num: 9 },
+        { xPct: 0.16, yOff: -ySpread * 0.65, num: 8 },
+        { xPct: 0.16, yOff: ySpread * 0.65, num: 4 },
+      ];
+    }
+
+    return specs.map((s) => ({
+      x: team === 'red' ? pitchLeft + spanX * s.xPct : pitchLeft + spanX * (1 - s.xPct),
+      y: centerY + s.yOff,
+      num: s.num,
+    }));
   }
 
   constructor(settings: MatchSettings) {
@@ -144,68 +190,41 @@ export class GameEngine {
 
   public initEntities() {
     const pitch = this.pitchConfig;
-    const margin = this.pitchMargin;
     const centerY = pitch.height / 2;
-    const pitchLeft = margin.x;
-    const pitchRight = pitch.width - margin.x;
 
     const isOlympic = this.settings.stadiumType === 'olympic';
     const isGrand = this.settings.stadiumType === 'grand_stadium';
-    const playerRadius = isOlympic ? 31 : isGrand ? 28 : 24;
-    const ballRadius = isOlympic ? 16 : isGrand ? 14.5 : 12.5;
-
-    const format = this.settings.matchFormat || '1v1';
-    const hasRed2 = format === '2v1' || format === '2v2';
-    const hasBlue2 = format === '2v2';
-
-    const ySpread = isOlympic ? 175 : isGrand ? 130 : 85;
+    const playerRadius = isOlympic ? 36 : isGrand ? 31 : 24;
+    const ballRadius = isOlympic ? 18.5 : isGrand ? 16 : 12.5;
 
     const homeClub = CLUBS[this.settings.homeClub || 'liverpool'] || CLUBS.liverpool;
     const awayClub = CLUBS[this.settings.awayClub || 'ipswich'] || CLUBS.ipswich;
 
-    // Home Club 1 (Captain #10 / #7)
-    this.playerRed = {
-      id: 'red',
-      name: hasRed2 ? `${homeClub.name} 1 (WASD)` : `${homeClub.name} (${homeClub.code})`,
-      x: pitchLeft + (pitchRight - pitchLeft) * 0.25,
-      y: hasRed2 ? centerY - ySpread : centerY,
-      vx: 0,
-      vy: 0,
-      radius: playerRadius,
-      color: homeClub.color,
-      accentColor: homeClub.accentColor,
-      glowColor: homeClub.glowColor,
-      number: 10,
-      score: 0,
-      isAi: this.settings.mode === '1player_vs_ai' && this.settings.userTeam === 'blue',
-      kickCooldown: 0,
-      isKicking: false,
-      kickCharge: 0,
-      shots: 0,
-      shotsOnTarget: 0,
-      possessionFrames: 0,
-      tapTimestamps: [],
-      isSuperShot: false,
-      superShotActiveTimer: 0,
-    };
-
-    // Home Club 2 (#9 Striker) if 2v1 or 2v2
-    if (hasRed2) {
-      const isRed2Human = this.settings.hostLocalPlayers === 2;
-      this.playerRed2 = {
-        id: 'red',
-        name: isRed2Human ? `${homeClub.name} 2 (Yön+P)` : `${homeClub.name} 2 (AI)`,
-        x: pitchLeft + (pitchRight - pitchLeft) * 0.22,
-        y: centerY + ySpread,
+    const createPlayer = (
+      team: TeamId,
+      name: string,
+      x: number,
+      y: number,
+      num: number,
+      isAi: boolean,
+      onlineId?: string
+    ): Player => {
+      const club = team === 'red' ? homeClub : awayClub;
+      return {
+        id: team,
+        onlineId,
+        name,
+        x,
+        y,
         vx: 0,
         vy: 0,
         radius: playerRadius,
-        color: homeClub.color,
-        accentColor: homeClub.accentColor,
-        glowColor: homeClub.glowColor,
-        number: 9,
+        color: club.color,
+        accentColor: club.accentColor,
+        glowColor: club.glowColor,
+        number: num,
         score: 0,
-        isAi: !isRed2Human,
+        isAi,
         kickCooldown: 0,
         isKicking: false,
         kickCharge: 0,
@@ -216,68 +235,112 @@ export class GameEngine {
         isSuperShot: false,
         superShotActiveTimer: 0,
       };
-    } else {
-      this.playerRed2 = undefined;
-    }
-
-    // Away Club 1 (Captain #7)
-    this.playerBlue = {
-      id: 'blue',
-      name: hasBlue2 ? `${awayClub.name} 1` : `${awayClub.name} (${awayClub.code})`,
-      x: pitchLeft + (pitchRight - pitchLeft) * 0.75,
-      y: hasBlue2 ? centerY - ySpread : centerY,
-      vx: 0,
-      vy: 0,
-      radius: playerRadius,
-      color: awayClub.color,
-      accentColor: awayClub.accentColor,
-      glowColor: awayClub.glowColor,
-      number: 7,
-      score: 0,
-      isAi: this.settings.mode === '1player_vs_ai'
-        ? this.settings.userTeam === 'red'
-        : (this.settings.hostLocalPlayers === 2 && this.settings.mode === '2player'),
-      kickCooldown: 0,
-      isKicking: false,
-      kickCharge: 0,
-      shots: 0,
-      shotsOnTarget: 0,
-      possessionFrames: 0,
-      tapTimestamps: [],
-      isSuperShot: false,
-      superShotActiveTimer: 0,
     };
 
-    // Away Club 2 (#9 Striker) if 2v2
-    if (hasBlue2) {
-      const isBlue2Human = this.settings.guestLocalPlayers === 2;
-      this.playerBlue2 = {
-        id: 'blue',
-        name: isBlue2Human ? `${awayClub.name} 2` : `${awayClub.name} 2 (AI)`,
-        x: pitchLeft + (pitchRight - pitchLeft) * 0.78,
-        y: centerY + ySpread,
-        vx: 0,
-        vy: 0,
-        radius: playerRadius,
-        color: awayClub.color,
-        accentColor: awayClub.accentColor,
-        glowColor: awayClub.glowColor,
-        number: 9,
-        score: 0,
-        isAi: !isBlue2Human,
-        kickCooldown: 0,
-        isKicking: false,
-        kickCharge: 0,
-        shots: 0,
-        shotsOnTarget: 0,
-        possessionFrames: 0,
-        tapTimestamps: [],
-        isSuperShot: false,
-        superShotActiveTimer: 0,
-      };
+    if (this.settings.mode === 'online_room') {
+      const roster = this.settings.onlineRoster || [];
+      const redEntries = roster.filter((r) => r.team === 'red').slice(0, 4);
+      const blueEntries = roster.filter((r) => r.team === 'blue').slice(0, 4);
+
+      const redCount = Math.max(1, Math.min(4, redEntries.length || this.settings.onlineRedCount || 1));
+      const blueCount = Math.max(1, Math.min(4, blueEntries.length || this.settings.onlineBlueCount || 1));
+
+      const redSlots = this.getFormationPositions('red', redCount);
+      const blueSlots = this.getFormationPositions('blue', blueCount);
+
+      this.redPlayers = redSlots.map((pos, idx) => {
+        const entry = redEntries[idx];
+        return createPlayer(
+          'red',
+          entry ? entry.name : `${homeClub.code} ${idx + 1}`,
+          pos.x,
+          pos.y,
+          pos.num,
+          false,
+          entry?.id
+        );
+      });
+
+      this.bluePlayers = blueSlots.map((pos, idx) => {
+        const entry = blueEntries[idx];
+        return createPlayer(
+          'blue',
+          entry ? entry.name : `${awayClub.code} ${idx + 1}`,
+          pos.x,
+          pos.y,
+          pos.num,
+          false,
+          entry?.id
+        );
+      });
     } else {
-      this.playerBlue2 = undefined;
+      const format = this.settings.matchFormat || '1v1';
+      const hasRed2 = format === '2v1' || format === '2v2';
+      const hasBlue2 = format === '2v2';
+
+      const redSlots = this.getFormationPositions('red', hasRed2 ? 2 : 1);
+      const blueSlots = this.getFormationPositions('blue', hasBlue2 ? 2 : 1);
+
+      const isRed1Ai = this.settings.mode === '1player_vs_ai' && this.settings.userTeam === 'blue';
+      const isBlue1Ai =
+        this.settings.mode === '1player_vs_ai'
+          ? this.settings.userTeam === 'red'
+          : this.settings.hostLocalPlayers === 2 && this.settings.mode === '2player';
+
+      this.redPlayers = [
+        createPlayer(
+          'red',
+          hasRed2 ? `${homeClub.name} 1 (WASD)` : `${homeClub.name} (${homeClub.code})`,
+          redSlots[0].x,
+          redSlots[0].y,
+          redSlots[0].num,
+          isRed1Ai
+        ),
+      ];
+      if (hasRed2) {
+        const isRed2Human = this.settings.hostLocalPlayers === 2;
+        this.redPlayers.push(
+          createPlayer(
+            'red',
+            isRed2Human ? `${homeClub.name} 2 (Yön+P)` : `${homeClub.name} 2 (AI)`,
+            redSlots[1].x,
+            redSlots[1].y,
+            redSlots[1].num,
+            !isRed2Human
+          )
+        );
+      }
+
+      this.bluePlayers = [
+        createPlayer(
+          'blue',
+          hasBlue2 ? `${awayClub.name} 1` : `${awayClub.name} (${awayClub.code})`,
+          blueSlots[0].x,
+          blueSlots[0].y,
+          blueSlots[0].num,
+          isBlue1Ai
+        ),
+      ];
+      if (hasBlue2) {
+        const isBlue2Human = this.settings.guestLocalPlayers === 2;
+        this.bluePlayers.push(
+          createPlayer(
+            'blue',
+            isBlue2Human ? `${awayClub.name} 2` : `${awayClub.name} 2 (AI)`,
+            blueSlots[1].x,
+            blueSlots[1].y,
+            blueSlots[1].num,
+            !isBlue2Human
+          )
+        );
+      }
     }
+
+    // Backwards-compatible aliases
+    this.playerRed = this.redPlayers[0];
+    this.playerRed2 = this.redPlayers[1];
+    this.playerBlue = this.bluePlayers[0];
+    this.playerBlue2 = this.bluePlayers[1];
 
     this.ball = {
       x: pitch.width / 2,
@@ -292,16 +355,9 @@ export class GameEngine {
     };
   }
 
-  public resetToKickoff(scoringTeam?: TeamId) {
+  public resetToKickoff(_scoringTeam?: TeamId) {
     const pitch = this.pitchConfig;
-    const margin = this.pitchMargin;
     const centerY = pitch.height / 2;
-    const pitchLeft = margin.x;
-    const pitchRight = pitch.width - margin.x;
-
-    const isOlympic = this.settings.stadiumType === 'olympic';
-    const isGrand = this.settings.stadiumType === 'grand_stadium';
-    const ySpread = isOlympic ? 175 : isGrand ? 130 : 85;
 
     this.ball.x = pitch.width / 2;
     this.ball.y = centerY;
@@ -316,56 +372,26 @@ export class GameEngine {
       this.onSetPieceChange?.({ ...this.setPiece });
     }
 
-    const hasRed2 = !!this.playerRed2;
-    const hasBlue2 = !!this.playerBlue2;
+    const redSlots = this.getFormationPositions('red', this.redPlayers.length);
+    const blueSlots = this.getFormationPositions('blue', this.bluePlayers.length);
 
-    this.playerRed.x = pitchLeft + (pitchRight - pitchLeft) * 0.25;
-    this.playerRed.y = hasRed2 ? centerY - ySpread : centerY;
-    this.playerRed.vx = 0;
-    this.playerRed.vy = 0;
-    this.playerRed.isKicking = false;
-    this.playerRed.kickCooldown = 0;
-    this.playerRed.isSuperShot = false;
-    this.playerRed.superShotActiveTimer = 0;
-    this.playerRed.tapTimestamps = [];
+    const resetList = (players: Player[], slots: { x: number; y: number }[]) => {
+      players.forEach((p, idx) => {
+        const pos = slots[idx] || slots[0];
+        p.x = pos.x;
+        p.y = pos.y;
+        p.vx = 0;
+        p.vy = 0;
+        p.isKicking = false;
+        p.kickCooldown = 0;
+        p.isSuperShot = false;
+        p.superShotActiveTimer = 0;
+        p.tapTimestamps = [];
+      });
+    };
 
-    if (this.playerRed2) {
-      this.playerRed2.x = pitchLeft + (pitchRight - pitchLeft) * 0.22;
-      this.playerRed2.y = centerY + ySpread;
-      this.playerRed2.vx = 0;
-      this.playerRed2.vy = 0;
-      this.playerRed2.isKicking = false;
-      this.playerRed2.kickCooldown = 0;
-      this.playerRed2.isSuperShot = false;
-      this.playerRed2.superShotActiveTimer = 0;
-      this.playerRed2.tapTimestamps = [];
-    }
-
-    this.playerBlue.x = pitchLeft + (pitchRight - pitchLeft) * 0.75;
-    this.playerBlue.y = hasBlue2 ? centerY - ySpread : centerY;
-    this.playerBlue.vx = 0;
-    this.playerBlue.vy = 0;
-    this.playerBlue.isKicking = false;
-    this.playerBlue.kickCooldown = 0;
-    this.playerBlue.isSuperShot = false;
-    this.playerBlue.superShotActiveTimer = 0;
-    this.playerBlue.tapTimestamps = [];
-
-    if (this.playerBlue2) {
-      this.playerBlue2.x = pitchLeft + (pitchRight - pitchLeft) * 0.78;
-      this.playerBlue2.y = centerY + ySpread;
-      this.playerBlue2.vx = 0;
-      this.playerBlue2.vy = 0;
-      this.playerBlue2.isKicking = false;
-      this.playerBlue2.kickCooldown = 0;
-      this.playerBlue2.isSuperShot = false;
-      this.playerBlue2.superShotActiveTimer = 0;
-      this.playerBlue2.tapTimestamps = [];
-    }
-    this.playerBlue.kickCooldown = 0;
-    this.playerBlue.isSuperShot = false;
-    this.playerBlue.superShotActiveTimer = 0;
-    this.playerBlue.tapTimestamps = [];
+    resetList(this.redPlayers, redSlots);
+    resetList(this.bluePlayers, blueSlots);
 
     // Start 3 second kickoff countdown
     this.gameState = 'countdown';
@@ -382,12 +408,13 @@ export class GameEngine {
       this.timeRemaining = settings.durationSeconds;
     }
     this.initEntities();
-    this.playerRed.score = 0;
-    this.playerBlue.score = 0;
-    this.playerRed.shots = 0;
-    this.playerBlue.shots = 0;
-    this.playerRed.possessionFrames = 0;
-    this.playerBlue.possessionFrames = 0;
+    this.remoteOnlineInputs.clear();
+    for (const p of this.getActivePlayers()) {
+      p.score = 0;
+      p.shots = 0;
+      p.shotsOnTarget = 0;
+      p.possessionFrames = 0;
+    }
     this.redCorners = 0;
     this.blueCorners = 0;
     this.redThrowIns = 0;
@@ -398,8 +425,13 @@ export class GameEngine {
     this.frameBuffer = [];
     this.goalReplays = [];
 
-    this.playerRed.isAi = this.settings.mode === '1player_vs_ai' && this.settings.userTeam === 'blue';
-    this.playerBlue.isAi = this.settings.mode === '1player_vs_ai' && this.settings.userTeam === 'red';
+    if (this.settings.mode !== 'online_room') {
+      this.playerRed.isAi = this.settings.mode === '1player_vs_ai' && this.settings.userTeam === 'blue';
+      this.playerBlue.isAi =
+        this.settings.mode === '1player_vs_ai'
+          ? this.settings.userTeam === 'red'
+          : this.settings.hostLocalPlayers === 2 && this.settings.mode === '2player';
+    }
 
     this.resetToKickoff();
   }
@@ -545,8 +577,9 @@ export class GameEngine {
     this.keyboard.endFrame();
   }
 
-  // Record rolling buffer of last 220 frames (~3.6 seconds)
+  // Record rolling buffer of last 240 frames (~4 seconds)
   private recordFrame() {
+    const extras = [...this.redPlayers.slice(2), ...this.bluePlayers.slice(2)];
     this.frameBuffer.push({
       ball: {
         x: this.ball.x,
@@ -588,6 +621,14 @@ export class GameEngine {
         isKicking: this.playerBlue2.isKicking,
         isSuperShot: this.playerBlue2.isSuperShot,
       } : undefined,
+      extraPlayers: extras.length > 0 ? extras.map((p) => ({
+        x: p.x,
+        y: p.y,
+        vx: p.vx,
+        vy: p.vy,
+        isKicking: p.isKicking,
+        isSuperShot: p.isSuperShot,
+      })) : undefined,
     });
 
     if (this.frameBuffer.length > 240) {
@@ -656,6 +697,21 @@ export class GameEngine {
         this.playerBlue2.isKicking = frame.playerBlue2.isKicking;
         this.playerBlue2.isSuperShot = !!frame.playerBlue2.isSuperShot;
       }
+
+      if (frame.extraPlayers) {
+        const extras = [...this.redPlayers.slice(2), ...this.bluePlayers.slice(2)];
+        extras.forEach((p, idx) => {
+          const snap = frame.extraPlayers?.[idx];
+          if (snap) {
+            p.x = snap.x;
+            p.y = snap.y;
+            p.vx = snap.vx;
+            p.vy = snap.vy;
+            p.isKicking = snap.isKicking;
+            p.isSuperShot = !!snap.isSuperShot;
+          }
+        });
+      }
     }
   }
 
@@ -676,6 +732,65 @@ export class GameEngine {
 
   private handleInputs(dt: number) {
     const kb = this.keyboard;
+
+    // Online Room Mode (Host runs physics for local player + all remote players 1v1..4v4)
+    if (this.settings.mode === 'online_room') {
+      const activePlayers = this.getActivePlayers();
+      const localId = this.settings.localOnlinePlayerId;
+      const localPlayer =
+        (localId ? activePlayers.find((p) => p.onlineId === localId) : undefined) || this.playerRed;
+
+      // Host's own player controls (WASD + Arrows + Space/P + Touch)
+      if (localPlayer) {
+        let dx = 0;
+        let dy = 0;
+        if (kb.isDown('KeyW') || kb.isDown('ArrowUp') || kb.isDown('Numpad8')) dy -= 1;
+        if (kb.isDown('KeyS') || kb.isDown('ArrowDown') || kb.isDown('Numpad5')) dy += 1;
+        if (kb.isDown('KeyA') || kb.isDown('ArrowLeft') || kb.isDown('Numpad4')) dx -= 1;
+        if (kb.isDown('KeyD') || kb.isDown('ArrowRight') || kb.isDown('Numpad6')) dx += 1;
+
+        const touch = localPlayer.id === 'red' ? this.touchRed : this.touchBlue;
+        if (touch.x !== 0 || touch.y !== 0) {
+          dx = touch.x;
+          dy = touch.y;
+        }
+
+        this.applyPlayerMovement(localPlayer, dx, dy, dt);
+
+        const kickPressed = kb.isJustPressed('Space') || kb.isJustPressed('KeyP');
+        if (kickPressed) {
+          this.registerKickTap(localPlayer);
+        }
+        const kickHeld = kb.isDown('Space') || kb.isDown('KeyP') || touch.kick;
+        if ((kickPressed || kickHeld) && localPlayer.kickCooldown <= 0) {
+          this.attemptKick(localPlayer, dx, dy);
+        }
+      }
+
+      // Remote peer players
+      for (const p of activePlayers) {
+        if (p === localPlayer) continue;
+        const inp = p.onlineId ? this.remoteOnlineInputs.get(p.onlineId) : undefined;
+        const rdx = inp?.dx || 0;
+        const rdy = inp?.dy || 0;
+        this.applyPlayerMovement(p, rdx, rdy, dt);
+
+        if (inp) {
+          if (inp.isSuper && !p.isSuperShot) {
+            p.isSuperShot = true;
+            p.superShotActiveTimer = 0.9;
+          }
+          if (inp.kick && !inp.prevKick) {
+            this.registerKickTap(p);
+          }
+          if (inp.kick && p.kickCooldown <= 0) {
+            this.attemptKick(p, rdx, rdy);
+          }
+          inp.prevKick = inp.kick;
+        }
+      }
+      return;
+    }
 
     // Red 1 (Player 1 on single PC / Host): strictly WASD and Space
     if (!this.playerRed.isAi) {
@@ -837,8 +952,8 @@ export class GameEngine {
     const isOlympic = this.settings.stadiumType === 'olympic';
     const isGrand = this.settings.stadiumType === 'grand_stadium';
     const speedMult = this.settings.playerSpeedMultiplier || 1;
-    const ACCEL = (isOlympic ? 5700 : isGrand ? 4950 : 4050) * speedMult;
-    const MAX_SPEED = (isOlympic ? 435 : isGrand ? 390 : 330) * speedMult;
+    const ACCEL = (isOlympic ? 7800 : isGrand ? 5700 : 4050) * speedMult;
+    const MAX_SPEED = (isOlympic ? 620 : isGrand ? 435 : 330) * speedMult;
 
     // Rapid counter-braking (Active Braking) for ultra-sharp instant turn response
     if (dx !== 0) {
@@ -951,7 +1066,7 @@ export class GameEngine {
       const isSuper = player.isSuperShot;
       const isOlympic = this.settings.stadiumType === 'olympic';
       const isGrand = this.settings.stadiumType === 'grand_stadium';
-      const basePower = isOlympic ? 1220 : isGrand ? 1040 : 860;
+      const basePower = isOlympic ? 1650 : isGrand ? 1220 : 860;
       const KICK_POWER = isSuper ? basePower * 2.0 : basePower; // 2X SPEED!
 
       this.ball.vx = dirX * KICK_POWER + player.vx * 0.25;
@@ -1179,7 +1294,7 @@ export class GameEngine {
     const centerY = pitch.height / 2;
     const isOlympic = this.settings.stadiumType === 'olympic';
     const isGrand = this.settings.stadiumType === 'grand_stadium';
-    const barrierRadius = isOlympic ? 165 : isGrand ? 140 : 115;
+    const barrierRadius = isOlympic ? 260 : isGrand ? 165 : 115;
 
     if (type === 'corner') {
       if (team === 'red') this.redCorners++;
@@ -1209,8 +1324,14 @@ export class GameEngine {
     soundManager.playWhistle(false);
     this.onSetPieceChange?.({ ...this.setPiece });
 
-    // Position taking player cleanly OUTSIDE the pitch line/corner facing into the field
-    const taker = team === 'red' ? this.playerRed : this.playerBlue;
+    // Position nearest teammate cleanly OUTSIDE the pitch line/corner facing into the field
+    const teamPlayers = team === 'red' ? this.redPlayers : this.bluePlayers;
+    const taker =
+      teamPlayers.reduce((best, curr) => {
+        const dBest = Math.hypot(best.x - spotX, best.y - spotY);
+        const dCurr = Math.hypot(curr.x - spotX, curr.y - spotY);
+        return dCurr < dBest ? curr : best;
+      }, teamPlayers[0]) || (team === 'red' ? this.playerRed : this.playerBlue);
     const offset = taker.radius + this.ball.radius + 6;
 
     if (type === 'throw_in') {
@@ -1501,7 +1622,7 @@ export class GameEngine {
           this.triggerSetPiece('corner', 'blue', pitchLeft, spotY);
         } else {
           // Blue attacker shot wide -> AUT (Goal Kick) for Red!
-          const goalKickX = pitchLeft + (isOlympic ? 105 : isGrand ? 85 : 55);
+          const goalKickX = pitchLeft + (isOlympic ? 195 : isGrand ? 105 : 55);
           const goalKickY = this.ball.y < centerY ? centerY - 35 : centerY + 35;
           this.triggerSetPiece('goal_kick', 'red', goalKickX, goalKickY);
         }
@@ -1542,7 +1663,7 @@ export class GameEngine {
           this.triggerSetPiece('corner', 'red', pitchRight, spotY);
         } else {
           // Red attacker shot wide -> AUT (Goal Kick) for Blue!
-          const goalKickX = pitchRight - (isOlympic ? 105 : isGrand ? 85 : 55);
+          const goalKickX = pitchRight - (isOlympic ? 195 : isGrand ? 105 : 55);
           const goalKickY = this.ball.y < centerY ? centerY - 35 : centerY + 35;
           this.triggerSetPiece('goal_kick', 'blue', goalKickX, goalKickY);
         }
@@ -1635,16 +1756,16 @@ export class GameEngine {
   }
 
   private trackPossession() {
-    let minRedDist = Math.hypot(this.ball.x - this.playerRed.x, this.ball.y - this.playerRed.y);
-    if (this.playerRed2) {
-      const d2 = Math.hypot(this.ball.x - this.playerRed2.x, this.ball.y - this.playerRed2.y);
-      if (d2 < minRedDist) minRedDist = d2;
+    let minRedDist = Infinity;
+    for (const p of this.redPlayers) {
+      const d = Math.hypot(this.ball.x - p.x, this.ball.y - p.y);
+      if (d < minRedDist) minRedDist = d;
     }
 
-    let minBlueDist = Math.hypot(this.ball.x - this.playerBlue.x, this.ball.y - this.playerBlue.y);
-    if (this.playerBlue2) {
-      const d2 = Math.hypot(this.ball.x - this.playerBlue2.x, this.ball.y - this.playerBlue2.y);
-      if (d2 < minBlueDist) minBlueDist = d2;
+    let minBlueDist = Infinity;
+    for (const p of this.bluePlayers) {
+      const d = Math.hypot(this.ball.x - p.x, this.ball.y - p.y);
+      if (d < minBlueDist) minBlueDist = d;
     }
 
     if (minRedDist < 140 && minRedDist < minBlueDist) {
@@ -1669,7 +1790,7 @@ export class GameEngine {
     const isGrand = this.settings.stadiumType === 'grand_stadium';
     const speedMult = this.settings.playerSpeedMultiplier || 1;
     const baseAiSpeed = diff === 'easy' ? 240 : diff === 'normal' ? 285 : 325;
-    const maxSpeed = (isOlympic ? baseAiSpeed * 1.3 : isGrand ? baseAiSpeed * 1.15 : baseAiSpeed) * reactionDelay * speedMult;
+    const maxSpeed = (isOlympic ? baseAiSpeed * 1.75 : isGrand ? baseAiSpeed * 1.3 : baseAiSpeed) * reactionDelay * speedMult;
 
     // Handle active set piece (Taç, Korner, Aut) cleanly for AI
     if (this.setPiece.active) {
@@ -1732,7 +1853,7 @@ export class GameEngine {
 
     if (isBallBehind) {
       // Retreat to goal defense line
-      const standBack = isOlympic ? 140 : isGrand ? 110 : 70;
+      const standBack = isOlympic ? 240 : isGrand ? 140 : 70;
       targetX = ownGoalX + (isRed ? standBack : -standBack);
       targetY = Math.max(
         pitch.height / 2 - pitch.goalWidth / 2 + 10,
@@ -1744,7 +1865,7 @@ export class GameEngine {
     } else {
       // Offensive mode
       const angleToGoal = Math.atan2(targetGoalY - this.ball.y, targetGoalX - this.ball.x);
-      const standBehindDistance = isOlympic ? 44 : isGrand ? 38 : 32;
+      const standBehindDistance = isOlympic ? 54 : isGrand ? 44 : 32;
 
       targetX = this.ball.x - Math.cos(angleToGoal) * standBehindDistance;
       targetY = this.ball.y - Math.sin(angleToGoal) * standBehindDistance;
@@ -1928,19 +2049,24 @@ export class GameEngine {
   }
 
   public getStats() {
-    const totalPossession = this.playerRed.possessionFrames + this.playerBlue.possessionFrames || 1;
-    const redPoss = Math.round((this.playerRed.possessionFrames / totalPossession) * 100);
+    const redPossFrames = this.redPlayers.reduce((sum, p) => sum + p.possessionFrames, 0);
+    const bluePossFrames = this.bluePlayers.reduce((sum, p) => sum + p.possessionFrames, 0);
+    const totalPossession = redPossFrames + bluePossFrames || 1;
+    const redPoss = Math.round((redPossFrames / totalPossession) * 100);
     const bluePoss = 100 - redPoss;
 
     let winner: TeamId | 'tie' = 'tie';
     if (this.playerRed.score > this.playerBlue.score) winner = 'red';
     else if (this.playerBlue.score > this.playerRed.score) winner = 'blue';
 
+    const redShots = this.redPlayers.reduce((sum, p) => sum + p.shots, 0);
+    const blueShots = this.bluePlayers.reduce((sum, p) => sum + p.shots, 0);
+
     return {
       redScore: this.playerRed.score,
       blueScore: this.playerBlue.score,
-      redShots: this.playerRed.shots,
-      blueShots: this.playerBlue.shots,
+      redShots,
+      blueShots,
       redCorners: this.redCorners,
       blueCorners: this.blueCorners,
       redThrowIns: this.redThrowIns,

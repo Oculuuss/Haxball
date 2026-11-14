@@ -11,7 +11,7 @@ import { GameOverModal } from './components/GameOverModal';
 import { ReplayPlayer } from './components/ReplayPlayer';
 import { TouchControls } from './components/TouchControls';
 import { SpeedSliderNav } from './components/SpeedSliderNav';
-import { CameraMode, CLUBS, GameState, GoalReplay, MatchSettings, MatchStats, PlayerSpeedMultiplier, SetPieceState, StadiumType, TeamId } from './types/game';
+import { CameraMode, CLUBS, GameState, GoalReplay, MatchSettings, MatchStats, PitchColor, PlayerSpeedMultiplier, SetPieceState, StadiumType, TeamId } from './types/game';
 import { onlineManager, OnlineRoomState } from './online/onlineManager';
 import { Smartphone, Monitor, Zap, Camera, Maximize2 } from 'lucide-react';
 
@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: MatchSettings = {
   homeClub: 'liverpool',
   awayClub: 'ipswich',
   theme: 'classic',
+  pitchColor: 'green',
   goldenGoalOnTie: true,
   stadiumType: 'olympic',
   cameraMode: 'dynamic',
@@ -46,6 +47,7 @@ export default function App() {
   const [settings, setSettings] = useState<MatchSettings>(DEFAULT_SETTINGS);
   const [cameraMode, setCameraMode] = useState<CameraMode>('dynamic');
   const [stadiumType, setStadiumType] = useState<StadiumType>('olympic');
+  const [pitchColor, setPitchColor] = useState<PitchColor>('green');
   const [redScore, setRedScore] = useState<number>(0);
   const [blueScore, setBlueScore] = useState<number>(0);
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
@@ -55,14 +57,6 @@ export default function App() {
   const [goalEventId, setGoalEventId] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [matchStats, setMatchStats] = useState<MatchStats | null>(null);
-  const [redPossession, setRedPossession] = useState<number>(50);
-  const [bluePossession, setBluePossession] = useState<number>(50);
-  const [redShots, setRedShots] = useState<number>(0);
-  const [blueShots, setBlueShots] = useState<number>(0);
-  const [redCorners, setRedCorners] = useState<number>(0);
-  const [blueCorners, setBlueCorners] = useState<number>(0);
-  const [redThrowIns, setRedThrowIns] = useState<number>(0);
-  const [blueThrowIns, setBlueThrowIns] = useState<number>(0);
   const [showTouchControls, setShowTouchControls] = useState<boolean>(false);
 
   // Premier League Goal Animation trigger function (can be called via triggerGoal(team) or window.triggerGoal)
@@ -137,26 +131,11 @@ export default function App() {
 
     engine.onSetPieceChange = (sp) => {
       setSetPieceBanner(sp.active ? { ...sp } : null);
-      setRedCorners(engine.redCorners);
-      setBlueCorners(engine.blueCorners);
-      setRedThrowIns(engine.redThrowIns);
-      setBlueThrowIns(engine.blueThrowIns);
     };
 
     engine.onTimeUpdate = (time) => {
       setTimeRemaining(time);
       setIsOvertime(engine.isOvertime);
-
-      const totalPoss = engine.playerRed.possessionFrames + engine.playerBlue.possessionFrames || 1;
-      const rPoss = Math.round((engine.playerRed.possessionFrames / totalPoss) * 100);
-      setRedPossession(rPoss);
-      setBluePossession(100 - rPoss);
-      setRedShots(engine.playerRed.shots);
-      setBlueShots(engine.playerBlue.shots);
-      setRedCorners(engine.redCorners);
-      setBlueCorners(engine.blueCorners);
-      setRedThrowIns(engine.redThrowIns);
-      setBlueThrowIns(engine.blueThrowIns);
     };
 
     engine.onMatchEnd = () => {
@@ -175,32 +154,21 @@ export default function App() {
         ...DEFAULT_SETTINGS,
         ...(serverSettings || {}),
         mode: 'online_room',
+        localOnlinePlayerId: onlineManager.roomState.myId,
       });
     };
 
     onlineManager.onRemoteInput = (input) => {
-      // If we are Host, guest controls blue player(s)
-      if (engineRef.current && onlineManager.roomState.isHost) {
+      if (engineRef.current && onlineManager.roomState.isHost && input.playerId) {
         const eng = engineRef.current;
-        eng.touchBlue.x = input.dx;
-        eng.touchBlue.y = input.dy;
-        eng.touchBlue.kick = input.kick;
-        if (input.isSuper) {
-          eng.playerBlue.isSuperShot = true;
-          eng.playerBlue.superShotActiveTimer = 0.9;
-        }
-
-        // If guest has 2 local players and match has playerBlue2:
-        if (input.p2 && eng.playerBlue2) {
-          eng.applyPlayerMovement(eng.playerBlue2, input.p2.dx, input.p2.dy, 0.016);
-          if (input.p2.isSuper) {
-            eng.playerBlue2.isSuperShot = true;
-            eng.playerBlue2.superShotActiveTimer = 0.9;
-          }
-          if (input.p2.kick && eng.playerBlue2.kickCooldown <= 0) {
-            eng.attemptKick(eng.playerBlue2);
-          }
-        }
+        const prev = eng.remoteOnlineInputs.get(input.playerId);
+        eng.remoteOnlineInputs.set(input.playerId, {
+          dx: input.dx,
+          dy: input.dy,
+          kick: input.kick,
+          isSuper: input.isSuper,
+          prevKick: prev?.prevKick ?? false,
+        });
       }
     };
 
@@ -214,36 +182,21 @@ export default function App() {
         eng.ball.vy = data.ball.vy;
         eng.ball.isSuperShot = !!data.ball.isSuperShot;
 
-        eng.playerRed.x = data.playerRed.x;
-        eng.playerRed.y = data.playerRed.y;
-        eng.playerRed.vx = data.playerRed.vx;
-        eng.playerRed.vy = data.playerRed.vy;
-        eng.playerRed.isKicking = data.playerRed.isKicking;
-        eng.playerRed.isSuperShot = !!data.playerRed.isSuperShot;
-
-        eng.playerBlue.x = data.playerBlue.x;
-        eng.playerBlue.y = data.playerBlue.y;
-        eng.playerBlue.vx = data.playerBlue.vx;
-        eng.playerBlue.vy = data.playerBlue.vy;
-        eng.playerBlue.isKicking = data.playerBlue.isKicking;
-        eng.playerBlue.isSuperShot = !!data.playerBlue.isSuperShot;
-
-        if (data.playerRed2 && eng.playerRed2) {
-          eng.playerRed2.x = data.playerRed2.x;
-          eng.playerRed2.y = data.playerRed2.y;
-          eng.playerRed2.vx = data.playerRed2.vx;
-          eng.playerRed2.vy = data.playerRed2.vy;
-          eng.playerRed2.isKicking = data.playerRed2.isKicking;
-          eng.playerRed2.isSuperShot = !!data.playerRed2.isSuperShot;
-        }
-
-        if (data.playerBlue2 && eng.playerBlue2) {
-          eng.playerBlue2.x = data.playerBlue2.x;
-          eng.playerBlue2.y = data.playerBlue2.y;
-          eng.playerBlue2.vx = data.playerBlue2.vx;
-          eng.playerBlue2.vy = data.playerBlue2.vy;
-          eng.playerBlue2.isKicking = data.playerBlue2.isKicking;
-          eng.playerBlue2.isSuperShot = !!data.playerBlue2.isSuperShot;
+        if (Array.isArray(data.players)) {
+          const active = eng.getActivePlayers();
+          data.players.forEach((snap, idx) => {
+            const target =
+              (snap.onlineId ? active.find((p) => p.onlineId === snap.onlineId) : undefined) ||
+              active[idx];
+            if (target) {
+              target.x = snap.x;
+              target.y = snap.y;
+              target.vx = snap.vx;
+              target.vy = snap.vy;
+              target.isKicking = snap.isKicking;
+              target.isSuperShot = !!snap.isSuperShot;
+            }
+          });
         }
 
         eng.playerRed.score = data.scoreRed;
@@ -330,16 +283,21 @@ export default function App() {
         if (!isOnline || isHost || engine.gameState === 'countdown') {
           engine.update(rawDt);
 
-          // If Host in online match, broadcast authoritative sync state to Guest
+          // If Host in online match, broadcast authoritative sync state to all peers
           if (isOnline && isHost && engine.gameState === 'playing') {
             syncThrottleCounter++;
             if (syncThrottleCounter % 2 === 0) {
               onlineManager.sendSyncState({
                 ball: { x: engine.ball.x, y: engine.ball.y, vx: engine.ball.vx, vy: engine.ball.vy, isSuperShot: engine.ball.isSuperShot },
-                playerRed: { x: engine.playerRed.x, y: engine.playerRed.y, vx: engine.playerRed.vx, vy: engine.playerRed.vy, isKicking: engine.playerRed.isKicking, isSuperShot: engine.playerRed.isSuperShot },
-                playerBlue: { x: engine.playerBlue.x, y: engine.playerBlue.y, vx: engine.playerBlue.vx, vy: engine.playerBlue.vy, isKicking: engine.playerBlue.isKicking, isSuperShot: engine.playerBlue.isSuperShot },
-                playerRed2: engine.playerRed2 ? { x: engine.playerRed2.x, y: engine.playerRed2.y, vx: engine.playerRed2.vx, vy: engine.playerRed2.vy, isKicking: engine.playerRed2.isKicking, isSuperShot: engine.playerRed2.isSuperShot } : undefined,
-                playerBlue2: engine.playerBlue2 ? { x: engine.playerBlue2.x, y: engine.playerBlue2.y, vx: engine.playerBlue2.vx, vy: engine.playerBlue2.vy, isKicking: engine.playerBlue2.isKicking, isSuperShot: engine.playerBlue2.isSuperShot } : undefined,
+                players: engine.getActivePlayers().map((p) => ({
+                  onlineId: p.onlineId,
+                  x: p.x,
+                  y: p.y,
+                  vx: p.vx,
+                  vy: p.vy,
+                  isKicking: p.isKicking,
+                  isSuperShot: p.isSuperShot,
+                })),
                 scoreRed: engine.playerRed.score,
                 scoreBlue: engine.playerBlue.score,
                 timeRemaining: engine.timeRemaining,
@@ -348,56 +306,30 @@ export default function App() {
             }
           }
         } else {
-          // Guest in online match: read local input
-          const isGuest2P = engine.settings.guestLocalPlayers === 2;
+          // Guest in online match: read local input (supports WASD, Arrows, and Touch)
           const kb = engine.keyboard;
+          const myOnlinePlayer = engine.getActivePlayers().find(
+            (p) => p.onlineId === onlineManager.roomState.myId
+          );
+          const myTouch = myOnlinePlayer?.id === 'red' ? engine.touchRed : engine.touchBlue;
 
-          // Player 1 controls (Blue 1)
           let dx = 0;
           let dy = 0;
-          if (isGuest2P) {
-            // In 2-player local mode: Player 1 strictly uses WASD + Space
-            if (kb.isDown('KeyW')) dy -= 1;
-            if (kb.isDown('KeyS')) dy += 1;
-            if (kb.isDown('KeyA')) dx -= 1;
-            if (kb.isDown('KeyD')) dx += 1;
-          } else {
-            // Solo guest: can use either Arrow keys or WASD
-            if (kb.isDown('ArrowUp') || kb.isDown('KeyW')) dy -= 1;
-            if (kb.isDown('ArrowDown') || kb.isDown('KeyS')) dy += 1;
-            if (kb.isDown('ArrowLeft') || kb.isDown('KeyA')) dx -= 1;
-            if (kb.isDown('ArrowRight') || kb.isDown('KeyD')) dx += 1;
+          if (kb.isDown('ArrowUp') || kb.isDown('KeyW') || kb.isDown('Numpad8')) dy -= 1;
+          if (kb.isDown('ArrowDown') || kb.isDown('KeyS') || kb.isDown('Numpad5')) dy += 1;
+          if (kb.isDown('ArrowLeft') || kb.isDown('KeyA') || kb.isDown('Numpad4')) dx -= 1;
+          if (kb.isDown('ArrowRight') || kb.isDown('KeyD') || kb.isDown('Numpad6')) dx += 1;
+
+          if (myTouch.x !== 0 || myTouch.y !== 0) {
+            dx = myTouch.x;
+            dy = myTouch.y;
           }
 
-          // Touch input fallback
-          if (engine.touchBlue.x !== 0 || engine.touchBlue.y !== 0) {
-            dx = engine.touchBlue.x;
-            dy = engine.touchBlue.y;
-          }
-
-          const kick = isGuest2P
-            ? (kb.isJustPressed('Space') || kb.isDown('Space') || engine.touchBlue.kick)
-            : (kb.isJustPressed('KeyP') || kb.isDown('KeyP') || kb.isDown('Space') || engine.touchBlue.kick);
-          const isSuper = !!engine.playerBlue.isSuperShot;
-
-          // Player 2 controls (Blue 2): strictly Arrow keys + KeyP
-          let p2Payload = undefined;
-          if (isGuest2P) {
-            let p2Dx = 0;
-            let p2Dy = 0;
-            if (kb.isDown('ArrowUp') || kb.isDown('Numpad8') || kb.isDown('KeyI')) p2Dy -= 1;
-            if (kb.isDown('ArrowDown') || kb.isDown('Numpad5') || kb.isDown('Numpad2') || kb.isDown('KeyK')) p2Dy += 1;
-            if (kb.isDown('ArrowLeft') || kb.isDown('Numpad4') || kb.isDown('KeyJ')) p2Dx -= 1;
-            if (kb.isDown('ArrowRight') || kb.isDown('Numpad6') || kb.isDown('KeyL')) p2Dx += 1;
-
-            const kick2 = kb.isJustPressed('KeyP') || kb.isDown('KeyP');
-            const isSuper2 = !!engine.playerBlue2?.isSuperShot;
-
-            p2Payload = { dx: p2Dx, dy: p2Dy, kick: kick2, isSuper: isSuper2 };
-          }
+          const kick = kb.isJustPressed('KeyP') || kb.isDown('KeyP') || kb.isJustPressed('Space') || kb.isDown('Space') || myTouch.kick;
+          const isSuper = !!myOnlinePlayer?.isSuperShot;
 
           kb.endFrame();
-          onlineManager.sendInput({ dx, dy, kick, isSuper, p2: p2Payload });
+          onlineManager.sendInput({ dx, dy, kick, isSuper });
         }
 
         renderer.render();
@@ -440,20 +372,15 @@ export default function App() {
     if (newSettings.stadiumType) {
       setStadiumType(newSettings.stadiumType);
     }
+    if (newSettings.pitchColor) {
+      setPitchColor(newSettings.pitchColor);
+    }
     lastTimeRef.current = 0;
     if (!engineRef.current) return;
     engineRef.current.startMatch(newSettings);
     setTimeRemaining(newSettings.durationSeconds);
     setRedScore(0);
     setBlueScore(0);
-    setRedShots(0);
-    setBlueShots(0);
-    setRedCorners(0);
-    setBlueCorners(0);
-    setRedThrowIns(0);
-    setBlueThrowIns(0);
-    setRedPossession(50);
-    setBluePossession(50);
     setIsOvertime(false);
     setLastScorer(null);
     setSetPieceBanner(null);
@@ -472,7 +399,13 @@ export default function App() {
   const handleToggleStadium = useCallback(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     if (engineRef.current) {
-      const nextStadium: StadiumType = engineRef.current.settings.stadiumType === 'grand_stadium' ? 'classic' : 'grand_stadium';
+      const current = engineRef.current.settings.stadiumType || 'olympic';
+      const nextStadium: StadiumType =
+        current === 'olympic'
+          ? 'grand_stadium'
+          : current === 'grand_stadium'
+            ? 'classic'
+            : 'olympic';
       engineRef.current.settings.stadiumType = nextStadium;
       setStadiumType(nextStadium);
       setSettings((prev) => ({ ...prev, stadiumType: nextStadium }));
@@ -480,6 +413,20 @@ export default function App() {
       engineRef.current.resetToKickoff();
     }
   }, []);
+
+  const handleChangePitchColor = useCallback((color: PitchColor) => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    setPitchColor(color);
+    setSettings((prev) => ({ ...prev, pitchColor: color }));
+    if (engineRef.current) {
+      engineRef.current.settings.pitchColor = color;
+    }
+  }, []);
+
+  const handleTogglePitchColor = useCallback(() => {
+    const nextColor: PitchColor = pitchColor === 'green' ? 'black' : 'green';
+    handleChangePitchColor(nextColor);
+  }, [pitchColor, handleChangePitchColor]);
 
   const handleTogglePause = useCallback(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -510,14 +457,6 @@ export default function App() {
     setTimeRemaining(engineRef.current.settings.durationSeconds);
     setRedScore(0);
     setBlueScore(0);
-    setRedShots(0);
-    setBlueShots(0);
-    setRedCorners(0);
-    setBlueCorners(0);
-    setRedThrowIns(0);
-    setBlueThrowIns(0);
-    setRedPossession(50);
-    setBluePossession(50);
     setIsOvertime(false);
     setLastScorer(null);
     setSetPieceBanner(null);
@@ -628,14 +567,6 @@ export default function App() {
           timeRemaining={timeRemaining}
           totalDuration={settings.durationSeconds}
           isOvertime={isOvertime}
-          redShots={redShots}
-          blueShots={blueShots}
-          redCorners={redCorners}
-          blueCorners={blueCorners}
-          redThrowIns={redThrowIns}
-          blueThrowIns={blueThrowIns}
-          redPossession={redPossession}
-          bluePossession={bluePossession}
           isMuted={isMuted}
           isPaused={gameState === 'paused'}
           isRedAi={isRedAi}
@@ -732,6 +663,23 @@ export default function App() {
               />
             )}
 
+          {/* Quick Pitch Turf Switcher (Yeşil / Siyah) */}
+          <button
+            type="button"
+            tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleTogglePitchColor}
+            className="flex items-center gap-1.5 px-3 h-8 rounded-md bg-[#111111]/90 hover:bg-zinc-900 text-[#888888] hover:text-white text-xs font-medium border border-zinc-800 hover:border-zinc-700 backdrop-blur-sm transition-colors whitespace-nowrap"
+            title="Saha Çimi Rengini Değiştir (Yeşil / Siyah)"
+          >
+            <span
+              className={`w-2.5 h-2.5 rounded-sm border border-white/40 shrink-0 ${
+                pitchColor === 'green' ? 'bg-[#247d40]' : 'bg-[#161920]'
+              }`}
+            />
+            <span className="hidden sm:inline">{pitchColor === 'green' ? 'Çim: Yeşil' : 'Çim: Siyah'}</span>
+          </button>
+
           {/* Quick Stadium Switcher */}
           <button
             type="button"
@@ -739,9 +687,15 @@ export default function App() {
             onMouseDown={(e) => e.preventDefault()}
             onClick={handleToggleStadium}
             className="hidden sm:flex items-center gap-1.5 px-3 h-8 rounded-md bg-[#111111]/90 hover:bg-zinc-900 text-[#888888] hover:text-white text-xs font-medium border border-zinc-800 hover:border-zinc-700 backdrop-blur-sm transition-colors whitespace-nowrap"
-            title="Saha Boyutunu Değiştir (Grand Stadyum / Klasik Haxball)"
+            title="Saha Boyutunu Değiştir (Olimpik / Grand / Klasik)"
           >
-            <span>{stadiumType === 'grand_stadium' ? 'Saha: Grand' : 'Saha: Klasik'}</span>
+            <span>
+              {stadiumType === 'olympic'
+                ? 'Saha: Olimpik'
+                : stadiumType === 'grand_stadium'
+                  ? 'Saha: Grand'
+                  : 'Saha: Klasik'}
+            </span>
           </button>
 
           {/* Quick Camera Mode Switcher */}
@@ -806,6 +760,8 @@ export default function App() {
           onTestGoal={() => triggerGoal(Math.random() > 0.5 ? 'red' : 'blue')}
           playerSpeedMultiplier={settings.playerSpeedMultiplier || 1}
           onChangeSpeed={handleChangeSpeed}
+          pitchColor={pitchColor}
+          onChangePitchColor={handleChangePitchColor}
         />
       )}
 

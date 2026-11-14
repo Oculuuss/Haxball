@@ -1,6 +1,6 @@
 import React from 'react';
 import { Play, RotateCcw, Home, Volume2, VolumeX, Sparkles } from 'lucide-react';
-import { PlayerSpeedMultiplier } from '../types/game';
+import { PitchColor, PlayerSpeedMultiplier } from '../types/game';
 import { SpeedSliderNav } from './SpeedSliderNav';
 
 interface PauseModalProps {
@@ -12,6 +12,8 @@ interface PauseModalProps {
   onTestGoal?: () => void;
   playerSpeedMultiplier?: PlayerSpeedMultiplier;
   onChangeSpeed?: (speed: PlayerSpeedMultiplier) => void;
+  pitchColor?: PitchColor;
+  onChangePitchColor?: (color: PitchColor) => void;
 }
 
 export const PauseModal: React.FC<PauseModalProps> = ({
@@ -23,6 +25,8 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onTestGoal,
   playerSpeedMultiplier = 1,
   onChangeSpeed,
+  pitchColor = 'green',
+  onChangePitchColor,
 }) => {
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-[#0a0a0a]/85 backdrop-blur-md">
@@ -40,12 +44,44 @@ export const PauseModal: React.FC<PauseModalProps> = ({
         </div>
 
         {onChangeSpeed && (
-          <div className="mb-4">
+          <div className="mb-3">
             <SpeedSliderNav
               value={playerSpeedMultiplier}
               onChange={onChangeSpeed}
               variant="panel"
             />
+          </div>
+        )}
+
+        {onChangePitchColor && (
+          <div className="mb-4 flex items-center justify-between gap-3 bg-[#0a0a0a] px-3 py-2.5 rounded-lg border border-zinc-800">
+            <span className="text-xs font-medium text-zinc-300">Saha Çimi</span>
+            <div className="grid grid-cols-2 gap-1 p-0.5 rounded bg-zinc-900 border border-zinc-800">
+              <button
+                type="button"
+                onClick={() => onChangePitchColor('green')}
+                className={`h-7 px-2.5 rounded text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                  pitchColor === 'green'
+                    ? 'bg-white text-[#0a0a0a]'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#247d40] border border-black/20 shrink-0" />
+                <span>Yeşil</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangePitchColor('black')}
+                className={`h-7 px-2.5 rounded text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                  pitchColor === 'black'
+                    ? 'bg-white text-[#0a0a0a]'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#161920] border border-zinc-600 shrink-0" />
+                <span>Siyah</span>
+              </button>
+            </div>
           </div>
         )}
 
