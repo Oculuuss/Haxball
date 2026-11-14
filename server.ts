@@ -106,6 +106,10 @@ wss.on('connection', (ws: WebSocket) => {
           name: data.playerName || 'Mavi (Misafir)',
         };
         room.state = 'ready';
+        if (room.settings) {
+          if (data.awayClub) room.settings.awayClub = data.awayClub;
+          if (data.guestLocalPlayers) room.settings.guestLocalPlayers = data.guestLocalPlayers;
+        }
 
         // Notify Guest
         safeSend(ws, {
@@ -120,6 +124,7 @@ wss.on('connection', (ws: WebSocket) => {
           type: 'peer_joined',
           guestName: room.guest.name,
           team: 'blue',
+          settings: room.settings,
         });
         return;
       }

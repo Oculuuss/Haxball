@@ -1,10 +1,13 @@
 import React from 'react';
 import { Trophy, RotateCcw, Home, Film } from 'lucide-react';
-import { MatchStats } from '../types/game';
+import { CLUBS, ClubId, MatchStats } from '../types/game';
+import { ClubLogo } from './Crests';
 
 interface GameOverModalProps {
   stats: MatchStats;
   hasReplays: boolean;
+  homeClub?: ClubId;
+  awayClub?: ClubId;
   onWatchReplay: () => void;
   onRematch: () => void;
   onHome: () => void;
@@ -13,114 +16,141 @@ interface GameOverModalProps {
 export const GameOverModal: React.FC<GameOverModalProps> = ({
   stats,
   hasReplays,
+  homeClub = 'liverpool',
+  awayClub = 'ipswich',
   onWatchReplay,
   onRematch,
   onHome,
 }) => {
+  const home = CLUBS[homeClub] || CLUBS.liverpool;
+  const away = CLUBS[awayClub] || CLUBS.ipswich;
+
   const isRedWinner = stats.winner === 'red';
   const isBlueWinner = stats.winner === 'blue';
   const isTie = stats.winner === 'tie';
 
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
-      <div className="w-full max-w-md bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden my-auto">
-        
-        {/* Glow */}
-        <div
-          className={`absolute -top-20 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full blur-3xl pointer-events-none ${
-            isRedWinner ? 'bg-red-600/30' : isBlueWinner ? 'bg-blue-600/30' : 'bg-amber-500/20'
-          }`}
-        />
+    <div className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-[#0a0a0a]/88 backdrop-blur-md overflow-y-auto">
+      <div className="w-full max-w-md bg-[#111111] border border-zinc-800 rounded-xl p-6 sm:p-7 shadow-[0_24px_60px_-15px_rgba(0,0,0,0.85)] my-auto">
+        {/* Header */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-md bg-[#0a0a0a] border border-zinc-800 text-white mb-4">
+            <Trophy size={20} />
+          </div>
 
-        {/* Trophy icon */}
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-4 shadow-lg shadow-amber-500/20">
-          <Trophy size={36} />
+          <p className="text-[11px] font-mono uppercase tracking-wider text-[#888888] mb-1">
+            Maç Sonucu
+          </p>
+
+          <h2 className="text-xl sm:text-2xl font-semibold tracking-[-0.03em] text-white flex items-center justify-center gap-2">
+            {isRedWinner && (
+              <>
+                <ClubLogo clubId={home.id} className="w-6 h-6" />
+                <span>{home.name} Kazandı</span>
+              </>
+            )}
+            {isBlueWinner && (
+              <>
+                <ClubLogo clubId={away.id} className="w-6 h-6" />
+                <span>{away.name} Kazandı</span>
+              </>
+            )}
+            {isTie && <span>Mücadele Berabere Bitti</span>}
+          </h2>
         </div>
 
-        {/* Winner Title */}
-        <h2 className="font-display font-black text-2xl sm:text-3xl text-white tracking-wider mb-1">
-          {isRedWinner && <span className="text-red-400">KIRMIZI TAKIM KAZANDI!</span>}
-          {isBlueWinner && <span className="text-blue-400">MAVİ TAKIM KAZANDI!</span>}
-          {isTie && <span className="text-amber-400">MÜCADELE BERABERE BİTTİ!</span>}
-        </h2>
-        <p className="text-xs text-slate-400 mb-6">Mükemmel bir mücadele sergilendi!</p>
-
-        {/* Final Score Board */}
-        <div className="flex items-center justify-center gap-4 bg-slate-900/90 rounded-2xl p-4 border border-slate-800 shadow-inner mb-6">
-          <div className="flex flex-col items-center">
-            <span className="text-xs font-bold text-red-400 font-display uppercase">KIRMIZI</span>
-            <span className="text-4xl font-black font-display text-white mt-1">{stats.redScore}</span>
+        {/* Final Score Card */}
+        <div className="grid grid-cols-3 items-center bg-[#0a0a0a] rounded-lg p-4 border border-zinc-800 mb-4">
+          <div className="flex flex-col items-center text-center">
+            <ClubLogo clubId={home.id} className="w-8 h-8 mb-1.5" />
+            <span className="text-xs font-medium text-[#888888]">{home.code}</span>
+            <span className="text-3xl font-semibold font-mono tabular-nums text-white mt-1">
+              {stats.redScore}
+            </span>
           </div>
 
-          <span className="text-2xl font-black text-slate-600 font-display">:</span>
+          <div className="text-center text-lg font-mono text-zinc-600">:</div>
 
-          <div className="flex flex-col items-center">
-            <span className="text-xs font-bold text-blue-400 font-display uppercase">MAVİ</span>
-            <span className="text-4xl font-black font-display text-white mt-1">{stats.blueScore}</span>
+          <div className="flex flex-col items-center text-center">
+            <ClubLogo clubId={away.id} className="w-8 h-8 mb-1.5" />
+            <span className="text-xs font-medium text-[#888888]">{away.code}</span>
+            <span className="text-3xl font-semibold font-mono tabular-nums text-white mt-1">
+              {stats.blueScore}
+            </span>
           </div>
         </div>
 
-        {/* Match Statistics Table */}
-        <div className="bg-slate-900/60 rounded-2xl p-3 border border-slate-800/80 mb-6 text-xs space-y-2.5">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-1 flex justify-between">
-            <span className="text-red-400">Kırmızı</span>
-            <span>Maç İstatistikleri</span>
-            <span className="text-blue-400">Mavi</span>
+        {/* Match Statistics */}
+        <div className="bg-[#0a0a0a] rounded-lg p-4 border border-zinc-800 mb-6 text-xs space-y-2.5">
+          <div className="flex justify-between items-center pb-2 border-b border-zinc-800 text-[11px] font-mono uppercase text-[#888888]">
+            <span className="text-white">{home.code}</span>
+            <span>İstatistikler</span>
+            <span className="text-white">{away.code}</span>
           </div>
 
-          {/* Shots */}
-          <div className="flex justify-between items-center text-slate-300">
-            <span className="font-bold text-red-400">{stats.redShots}</span>
-            <span className="text-slate-400">Toplam Şut</span>
-            <span className="font-bold text-blue-400">{stats.blueShots}</span>
+          <div className="flex justify-between items-center">
+            <span className="font-mono tabular-nums font-medium text-white">{stats.redShots}</span>
+            <span className="text-[#888888]">Toplam Şut</span>
+            <span className="font-mono tabular-nums font-medium text-white">{stats.blueShots}</span>
           </div>
 
-          {/* Possession */}
-          <div className="flex justify-between items-center text-slate-300">
-            <span className="font-bold text-red-400">%{stats.redPossession}</span>
-            <span className="text-slate-400">Topla Oynama</span>
-            <span className="font-bold text-blue-400">%{stats.bluePossession}</span>
+          <div className="flex justify-between items-center">
+            <span className="font-mono tabular-nums font-medium text-white">{stats.redCorners}</span>
+            <span className="text-[#888888]">Korner</span>
+            <span className="font-mono tabular-nums font-medium text-white">{stats.blueCorners}</span>
           </div>
 
-          {/* Duration */}
-          <div className="flex justify-between items-center text-slate-300">
-            <span />
-            <span className="text-slate-400">Maç Süresi: <b className="text-white">{stats.duration} sn</b></span>
-            <span />
+          <div className="flex justify-between items-center">
+            <span className="font-mono tabular-nums font-medium text-white">{stats.redThrowIns}</span>
+            <span className="text-[#888888]">Taç</span>
+            <span className="font-mono tabular-nums font-medium text-white">{stats.blueThrowIns}</span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="font-mono tabular-nums font-medium text-white">%{stats.redPossession}</span>
+            <span className="text-[#888888]">Topla Oynama</span>
+            <span className="font-mono tabular-nums font-medium text-white">%{stats.bluePossession}</span>
+          </div>
+
+          <div className="flex justify-between items-center pt-1.5 border-t border-zinc-800/80 text-[11px] text-[#888888]">
+            <span>Maç Süresi</span>
+            <span className="font-mono tabular-nums text-white">{stats.duration} sn</span>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="space-y-2.5">
-          {/* Watch Replay Button (if goals were scored) */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={onRematch}
+            className="w-full h-10 px-4 rounded-full bg-white hover:bg-zinc-200 text-[#0a0a0a] font-medium text-sm flex items-center justify-center gap-2 transition-colors"
+          >
+            <RotateCcw size={15} />
+            <span>Tekrar Oyna</span>
+          </button>
+
           {hasReplays ? (
             <button
+              type="button"
               onClick={onWatchReplay}
-              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-display font-black text-sm tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all"
+              className="w-full h-10 px-4 rounded-md bg-[#0a0a0a] hover:bg-zinc-900 text-white font-medium text-xs flex items-center justify-center gap-2 border border-zinc-800 hover:border-zinc-700 transition-colors"
             >
-              <Film size={18} />
-              <span>GOL TEKRARLARINI İZLE (REPLAY)</span>
+              <Film size={14} className="text-[#888888]" />
+              <span>Gol Tekrarlarını İzle</span>
             </button>
           ) : (
-            <div className="text-[11px] text-slate-500 italic py-1">
-              (Maçta gol atılmadığı için gol tekrarı bulunmuyor)
+            <div className="text-[11px] text-[#888888] text-center py-1">
+              Gol kaydedilmediği için tekrar bulunmuyor.
             </div>
           )}
 
           <button
-            onClick={onRematch}
-            className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-display font-black text-sm tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/25 transition-all"
-          >
-            <RotateCcw size={18} />
-            <span>RÖVANŞ MAÇI YAP (TEKRAR OYNA)</span>
-          </button>
-
-          <button
+            type="button"
             onClick={onHome}
-            className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-display font-bold text-sm flex items-center justify-center gap-2 border border-slate-700 transition-all"
+            className="w-full h-10 px-4 rounded-md bg-transparent hover:bg-zinc-900 text-[#888888] hover:text-white font-medium text-xs flex items-center justify-center gap-2 border border-zinc-800/70 hover:border-zinc-700 transition-colors"
           >
-            <Home size={16} />
-            <span>AYARLAR & ANA MENÜ</span>
+            <Home size={14} />
+            <span>Ana Menü</span>
           </button>
         </div>
       </div>

@@ -221,36 +221,34 @@ const VirtualJoystick: React.FC<VirtualJoystickProps> = ({ team, engine, label }
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchCancel}
-      className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full relative touch-none select-none flex items-center justify-center transition-shadow ${
-        isRed
-          ? 'bg-slate-950/80 border-2 border-red-500/40 shadow-lg shadow-red-950/40'
-          : 'bg-slate-950/80 border-2 border-blue-500/40 shadow-lg shadow-blue-950/40'
-      } ${isActive ? (isRed ? 'border-red-400 ring-2 ring-red-500/30' : 'border-blue-400 ring-2 ring-blue-500/30') : ''}`}
+      className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full relative touch-none select-none flex items-center justify-center transition-colors bg-[#0a0a0a]/85 border ${
+        isActive ? 'border-zinc-400' : 'border-zinc-800'
+      }`}
       style={{ touchAction: 'none' }}
     >
       {/* Directional markers */}
-      <div className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-white/20 pointer-events-none" />
-      <div className="absolute bottom-1.5 w-1.5 h-1.5 rounded-full bg-white/20 pointer-events-none" />
-      <div className="absolute left-1.5 w-1.5 h-1.5 rounded-full bg-white/20 pointer-events-none" />
-      <div className="absolute right-1.5 w-1.5 h-1.5 rounded-full bg-white/20 pointer-events-none" />
+      <div className="absolute top-1.5 w-1.5 h-1.5 rounded-full bg-white/15 pointer-events-none" />
+      <div className="absolute bottom-1.5 w-1.5 h-1.5 rounded-full bg-white/15 pointer-events-none" />
+      <div className="absolute left-1.5 w-1.5 h-1.5 rounded-full bg-white/15 pointer-events-none" />
+      <div className="absolute right-1.5 w-1.5 h-1.5 rounded-full bg-white/15 pointer-events-none" />
 
       {/* Center resting ring */}
-      <div className="w-10 h-10 rounded-full border border-white/10 pointer-events-none flex items-center justify-center">
-        <span className="text-[9px] font-bold text-white/30 tracking-widest">{label}</span>
+      <div className="w-10 h-10 rounded-full border border-zinc-800 pointer-events-none flex items-center justify-center">
+        <span className="text-[9px] font-mono font-medium text-[#888888] tracking-widest">{label}</span>
       </div>
 
       {/* Floating movable joystick knob */}
       <div
-        className={`w-12 h-12 rounded-full absolute pointer-events-none shadow-xl flex items-center justify-center border-2 ${
+        className={`w-12 h-12 rounded-full absolute pointer-events-none shadow-lg flex items-center justify-center border ${
           isRed
-            ? 'bg-gradient-to-br from-red-500 to-red-700 border-red-200 text-white shadow-red-600/40'
-            : 'bg-gradient-to-br from-blue-500 to-blue-700 border-blue-200 text-white shadow-blue-600/40'
-        } ${isActive ? 'scale-105' : 'transition-transform duration-100 ease-out'}`}
+            ? 'bg-[#1a1a1a] border-zinc-500 text-white'
+            : 'bg-[#1a1a1a] border-zinc-500 text-white'
+        } ${isActive ? 'scale-105 bg-white text-[#0a0a0a] border-white' : 'transition-transform duration-100 ease-out'}`}
         style={{
           transform: `translate3d(${knobPos.x}px, ${knobPos.y}px, 0)`,
         }}
       >
-        <div className="w-3.5 h-3.5 rounded-full bg-white/40" />
+        <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-[#0a0a0a]/60' : 'bg-white/40'}`} />
       </div>
     </div>
   );
@@ -313,12 +311,8 @@ const DPad: React.FC<DPadProps> = ({ team, engine }) => {
     };
   }, [resetAll]);
 
-  const isRed = team === 'red';
-  const baseBtnClass = `w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold text-white select-none touch-none active:scale-90 transition-all border ${
-    isRed
-      ? 'bg-slate-900 border-red-500/40 text-red-300 active:bg-red-600 active:text-white'
-      : 'bg-slate-900 border-blue-500/40 text-blue-300 active:bg-blue-600 active:text-white'
-  }`;
+  const baseBtnClass =
+    'w-9 h-9 sm:w-10 sm:h-10 rounded-md flex items-center justify-center font-medium text-white select-none touch-none active:scale-90 transition-all border bg-[#111111] border-zinc-800 active:bg-white active:text-[#0a0a0a]';
 
   const makeHandlers = (dir: 'up' | 'down' | 'left' | 'right') => ({
     onPointerDown: (e: React.PointerEvent) => {
@@ -349,7 +343,7 @@ const DPad: React.FC<DPadProps> = ({ team, engine }) => {
   });
 
   return (
-    <div className="w-28 h-28 sm:w-32 sm:h-32 relative flex items-center justify-center bg-slate-950/70 rounded-full border border-white/10 p-1">
+    <div className="w-28 h-28 sm:w-32 sm:h-32 relative flex items-center justify-center bg-[#0a0a0a]/85 rounded-full border border-zinc-800 p-1">
       {/* UP */}
       <button {...makeHandlers('up')} className={`absolute top-1 ${baseBtnClass}`}>
         <ChevronUp size={18} />
@@ -426,8 +420,6 @@ const KickButton: React.FC<KickButtonProps> = ({ team, engine, keyLabel }) => {
     };
   }, [isPressed, endKick]);
 
-  const isRed = team === 'red';
-
   return (
     <button
       onPointerDown={(e) => {
@@ -458,20 +450,19 @@ const KickButton: React.FC<KickButtonProps> = ({ team, engine, keyLabel }) => {
       onMouseUp={endKick}
       onMouseLeave={endKick}
       style={{ touchAction: 'none' }}
-      className={`w-18 h-18 sm:w-22 sm:h-22 rounded-2xl select-none touch-none flex flex-col items-center justify-center font-display border-2 transition-transform shadow-xl ${
-        isPressed ? 'scale-90 brightness-125' : 'active:scale-95'
-      } ${
-        isRed
-          ? 'bg-gradient-to-br from-red-600 to-red-800 text-white border-red-300 shadow-red-600/30'
-          : 'bg-gradient-to-br from-blue-600 to-blue-800 text-white border-blue-300 shadow-blue-600/30'
+      className={`w-18 h-18 sm:w-20 sm:h-20 rounded-xl select-none touch-none flex flex-col items-center justify-center border transition-transform shadow-lg ${
+        isPressed
+          ? 'scale-95 bg-white text-[#0a0a0a] border-white'
+          : 'bg-[#111111]/95 text-white border-zinc-700 hover:bg-zinc-900'
       }`}
     >
       <div className="flex items-center gap-1">
-        <Zap size={14} className={isPressed ? 'text-amber-300 fill-amber-300 animate-pulse' : 'text-white/80'} />
-        <span className="font-black text-sm sm:text-base tracking-wide">ŞUT</span>
+        <Zap size={13} />
+        <span className="font-medium text-sm tracking-tight">ŞUT</span>
       </div>
-      <span className="text-[9px] font-semibold text-white/70 tracking-wider uppercase mt-0.5">{keyLabel}</span>
-      <span className="text-[8px] font-bold text-amber-300/90 tracking-tighter mt-0.5">3X SÜPER</span>
+      <span className={`text-[9px] font-mono uppercase mt-0.5 ${isPressed ? 'text-[#0a0a0a]/70' : 'text-[#888888]'}`}>
+        {keyLabel}
+      </span>
     </button>
   );
 };
@@ -491,14 +482,14 @@ export const TouchControls: React.FC<TouchControlsProps> = ({ engine, isRedAi, i
         <div className="pointer-events-auto flex items-end gap-2.5 sm:gap-4">
           <div className="flex flex-col items-center gap-1.5">
             {controlType === 'joystick' ? (
-              <VirtualJoystick team="red" engine={engine} label="WASD" />
+              <VirtualJoystick team="red" engine={engine} label="LIV" />
             ) : (
               <DPad team="red" engine={engine} />
             )}
-            {/* Control mode switcher pill */}
             <button
+              type="button"
               onClick={() => setControlType((prev) => (prev === 'joystick' ? 'dpad' : 'joystick'))}
-              className="px-2 py-0.5 rounded-full bg-slate-900/80 text-[10px] font-medium text-slate-400 hover:text-slate-200 border border-white/10 flex items-center gap-1"
+              className="px-2.5 py-1 rounded-md bg-[#111111]/90 text-[10px] font-mono text-[#888888] hover:text-white border border-zinc-800 flex items-center gap-1 transition-colors"
             >
               {controlType === 'joystick' ? <Disc3 size={11} /> : <Gamepad2 size={11} />}
               <span>{controlType === 'joystick' ? 'Joystick' : 'D-Pad'}</span>
@@ -518,14 +509,14 @@ export const TouchControls: React.FC<TouchControlsProps> = ({ engine, isRedAi, i
 
           <div className="flex flex-col items-center gap-1.5">
             {controlType === 'joystick' ? (
-              <VirtualJoystick team="blue" engine={engine} label="YÖN" />
+              <VirtualJoystick team="blue" engine={engine} label="IPS" />
             ) : (
               <DPad team="blue" engine={engine} />
             )}
-            {/* Control mode switcher pill */}
             <button
+              type="button"
               onClick={() => setControlType((prev) => (prev === 'joystick' ? 'dpad' : 'joystick'))}
-              className="px-2 py-0.5 rounded-full bg-slate-900/80 text-[10px] font-medium text-slate-400 hover:text-slate-200 border border-white/10 flex items-center gap-1"
+              className="px-2.5 py-1 rounded-md bg-[#111111]/90 text-[10px] font-mono text-[#888888] hover:text-white border border-zinc-800 flex items-center gap-1 transition-colors"
             >
               {controlType === 'joystick' ? <Disc3 size={11} /> : <Gamepad2 size={11} />}
               <span>{controlType === 'joystick' ? 'Joystick' : 'D-Pad'}</span>

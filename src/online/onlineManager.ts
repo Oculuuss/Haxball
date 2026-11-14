@@ -21,11 +21,19 @@ export class OnlineManager {
   // Callbacks
   public onRoomUpdate?: (state: OnlineRoomState) => void;
   public onGameStart?: (settings: MatchSettings) => void;
-  public onRemoteInput?: (input: { dx: number; dy: number; kick: boolean; isSuper: boolean }) => void;
+  public onRemoteInput?: (input: {
+    dx: number;
+    dy: number;
+    kick: boolean;
+    isSuper: boolean;
+    p2?: { dx: number; dy: number; kick: boolean; isSuper: boolean };
+  }) => void;
   public onSyncState?: (data: {
     ball: { x: number; y: number; vx: number; vy: number; isSuperShot?: boolean };
     playerRed: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
     playerBlue: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
+    playerRed2?: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
+    playerBlue2?: { x: number; y: number; vx: number; vy: number; isKicking: boolean; isSuperShot?: boolean };
     scoreRed: number;
     scoreBlue: number;
     timeRemaining: number;
@@ -161,13 +169,15 @@ export class OnlineManager {
     }
   }
 
-  public async joinRoom(code: string) {
+  public async joinRoom(code: string, options?: { awayClub?: string; guestLocalPlayers?: 1 | 2 }) {
     try {
       const socket = await this.connect();
       socket.send(
         JSON.stringify({
           type: 'join_room',
           code: code.trim().toUpperCase(),
+          awayClub: options?.awayClub,
+          guestLocalPlayers: options?.guestLocalPlayers,
         })
       );
     } catch (e) {
@@ -181,7 +191,13 @@ export class OnlineManager {
     }
   }
 
-  public sendInput(input: { dx: number; dy: number; kick: boolean; isSuper: boolean }) {
+  public sendInput(input: {
+    dx: number;
+    dy: number;
+    kick: boolean;
+    isSuper: boolean;
+    p2?: { dx: number; dy: number; kick: boolean; isSuper: boolean };
+  }) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'player_input', ...input }));
     }

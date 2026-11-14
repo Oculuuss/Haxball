@@ -1,4 +1,4 @@
-import { Ball, CameraMode, Particle, Player, StadiumTheme } from '../types/game';
+import { Ball, CameraMode, CLUBS, ClubId, Particle, Player, StadiumTheme } from '../types/game';
 import { GameEngine, PITCH_CONFIG, PITCH_MARGIN } from './physics';
 
 export class GameRenderer {
@@ -17,6 +17,9 @@ export class GameRenderer {
   private camZoom: number = 1;
   private isCameraInitialized: boolean = false;
 
+  // Preloaded Club Character Disc Images
+  private clubCharacterImages: Partial<Record<ClubId, HTMLImageElement>> = {};
+
   constructor(canvas: HTMLCanvasElement, engine: GameEngine) {
     this.canvas = canvas;
     const context = canvas.getContext('2d');
@@ -24,6 +27,17 @@ export class GameRenderer {
     this.ctx = context;
     this.engine = engine;
     this.cameraMode = engine.settings.cameraMode || 'dynamic';
+    this.preloadCharacterImages();
+  }
+
+  private preloadCharacterImages() {
+    (Object.keys(CLUBS) as ClubId[]).forEach((clubId) => {
+      const src = CLUBS[clubId].characterImage;
+      if (!src) return;
+      const img = new Image();
+      img.src = src;
+      this.clubCharacterImages[clubId] = img;
+    });
   }
 
   public setEngine(engine: GameEngine) {
@@ -61,6 +75,7 @@ export class GameRenderer {
     const engine = this.engine;
     const pitch = engine.pitchConfig;
     const margin = engine.pitchMargin;
+    const isOlympic = engine.settings.stadiumType === 'olympic';
     const isGrand = engine.settings.stadiumType === 'grand_stadium';
 
     const vw = this.viewportWidth;
@@ -68,11 +83,11 @@ export class GameRenderer {
 
     // Clear whole screen with stadium background
     ctx.save();
-    ctx.fillStyle = isGrand ? '#030508' : '#05070a';
+    ctx.fillStyle = isOlympic ? '#02040a' : isGrand ? '#030508' : '#05070a';
     ctx.fillRect(0, 0, vw, vh);
 
     // Calculate overview scale to fit the entire pitch comfortably
-    const overviewScale = Math.min(vw / pitch.width, vh / pitch.height) * (isGrand ? 0.92 : 0.95);
+    const overviewScale = Math.min(vw / pitch.width, vh / pitch.height) * (isOlympic ? 0.90 : isGrand ? 0.92 : 0.95);
 
     // Initialize camera position on first frame or if stadium changed
     if (!this.isCameraInitialized) {
@@ -87,17 +102,29 @@ export class GameRenderer {
     let targetY = pitch.height / 2;
     let targetZoom = overviewScale;
 
+    const activePlayers = engine.getActivePlayers();
+
     if (this.cameraMode === 'dynamic') {
-      // Weight target: 65% Ball, 17.5% Red Player, 17.5% Blue Player
-      targetX = engine.ball.x * 0.65 + engine.playerRed.x * 0.175 + engine.playerBlue.x * 0.175;
-      targetY = engine.ball.y * 0.65 + engine.playerRed.y * 0.175 + engine.playerBlue.y * 0.175;
+      // Calculate center of mass of all active players
+      let pXSum = 0;
+      let pYSum = 0;
+      for (const p of activePlayers) {
+        pXSum += p.x;
+        pYSum += p.y;
+      }
+      const avgPlayerX = pXSum / activePlayers.length;
+      const avgPlayerY = pYSum / activePlayers.length;
 
-      // Base dynamic magnification
-      const dynamicBaseZoom = isGrand ? overviewScale * 1.55 : overviewScale * 1.25;
+      // Weight target: 58% Ball, 42% Active Players average
+      targetX = engine.ball.x * 0.58 + avgPlayerX * 0.42;
+      targetY = engine.ball.y * 0.58 + avgPlayerY * 0.42;
 
-      // When ball flies fast (long shots / super shots), smoothly zoom out to reveal target goal
+      // Substantially closer in-game dynamic camera zoom for immersive broadcast action
+      const dynamicBaseZoom = isOlympic ? overviewScale * 2.35 : isGrand ? overviewScale * 2.15 : overviewScale * 1.75;
+
+      // When ball flies fast (long shots / super shots), smoothly reveal target trajectory
       const ballSpeed = Math.hypot(engine.ball.vx, engine.ball.vy);
-      const speedOutFactor = Math.max(0.8, 1 - (ballSpeed / 1800) * 0.22);
+      const speedOutFactor = Math.max(0.82, 1 - (ballSpeed / 2000) * 0.18);
       targetZoom = dynamicBaseZoom * speedOutFactor;
 
       // Clamp camera view within stadium bounds so empty void is never shown
@@ -150,7 +177,9 @@ export class GameRenderer {
     ctx.translate(-this.camX, -this.camY);
 
     // 1. Draw Stadium Surroundings & Architecture
-    if (isGrand) {
+    if (isOlympic) {
+      this.drawOlympicStadiumArchitecture();
+    } else if (isGrand) {
       this.drawGrandStadiumArchitecture();
     } else {
       this.drawClassicStadiumSurround();
@@ -162,31 +191,259 @@ export class GameRenderer {
     // 3. Draw Scaled Pitch Markings
     this.drawPitchMarkings();
 
+    // 3b. Draw Active Set-Piece Indicator (Taç / Korner / Aut)
+    if (engine.setPiece.active) {
+      this.drawSetPieceOverlay();
+    }
+
     // 4. Draw Goal Nets & Posts
     this.drawGoalNets();
     this.drawGoalPosts();
 
     // 5. Draw Dugout Benches and Corner Flags
-    if (isGrand) {
+    if (isOlympic || isGrand) {
       this.drawGrandStadiumDetails();
     }
 
     // 6. Draw Entities (Shadows, Players, Ball)
     this.drawBallShadow(engine.ball);
-    this.drawPlayer(engine.playerRed);
-    this.drawPlayer(engine.playerBlue);
+    for (const player of activePlayers) {
+      this.drawPlayer(player);
+    }
     this.drawBall(engine.ball);
 
     // 7. Draw Particles
     this.drawParticles(engine.particles);
 
     // 8. Draw Floodlight Volumetric Cones
-    if (isGrand) {
+    if (isOlympic || isGrand) {
       this.drawStadiumFloodlightGlows();
     }
 
     // 9. Draw in-world kick guides / hints
     this.drawInWorldHints();
+
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------
+  // OLİMPİK STAD ARCHITECTURE (TARTAN TRACK & OLYMPIC FLAME)
+  // ----------------------------------------------------
+  private drawOlympicStadiumArchitecture() {
+    const ctx = this.ctx;
+    const pitch = this.engine.pitchConfig;
+    const margin = this.engine.pitchMargin;
+    const pw = pitch.width;
+    const ph = pitch.height;
+    const centerX = pw / 2;
+
+    // 1. Massive Colosseum / Olympic Outer Hull
+    ctx.fillStyle = '#050811';
+    ctx.beginPath();
+    ctx.roundRect(-95, -85, pw + 190, ph + 170, 60);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    // 2. Colossal Grandstand Tier 3 & Tier 2 Seating
+    ctx.fillStyle = '#0c1322';
+    ctx.beginPath();
+    ctx.roundRect(-75, -68, pw + 150, ph + 136, 48);
+    ctx.fill();
+
+    const rowColors = ['#152033', '#1e293b', '#17253a', '#1e293b'];
+    for (let r = 0; r < 4; r++) {
+      ctx.fillStyle = rowColors[r];
+      const inset = 60 - r * 10;
+      ctx.fillRect(-inset, -inset, pw + inset * 2, 8);
+      ctx.fillRect(-inset, ph + inset - 8, pw + inset * 2, 8);
+    }
+
+    // 3. Cheering Olympic Crowd with Flag Silhouettes
+    const stepX = 26;
+    for (let x = -40; x < pw + 40; x += stepX) {
+      const isLeftSide = x < pw * 0.45;
+      const isRightSide = x > pw * 0.55;
+      const crowdColor = isLeftSide ? '#ef4444' : isRightSide ? '#3b82f6' : '#f8fafc';
+
+      ctx.fillStyle = crowdColor;
+      ctx.beginPath();
+      ctx.arc(x + 5, -34, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(x + 5, ph + 34, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 4. Authentic 8-Lane Tartan Athletic Running Track (Brick-Red / Terracotta)
+    const trackOuterInsetX = margin.x - 145;
+    const trackOuterInsetY = margin.y - 100;
+    const trackW = pw - 2 * trackOuterInsetX;
+    const trackH = ph - 2 * trackOuterInsetY;
+
+    // Tartan Track Base Surface
+    ctx.fillStyle = '#881337'; // Deep athletic terracotta red
+    ctx.beginPath();
+    ctx.roundRect(trackOuterInsetX, trackOuterInsetY, trackW, trackH, 65);
+    ctx.fill();
+
+    // Track Inner Curb Inset (Lawn transition)
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(margin.x - 14, margin.y - 12, pw - 2 * (margin.x - 14), ph - 2 * (margin.y - 12), 26);
+    ctx.fill();
+
+    // 8 Concentric Running Lanes
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    const totalTrackLanes = 8;
+    const laneWidth = (145 - 14) / totalTrackLanes;
+
+    for (let lane = 0; lane <= totalTrackLanes; lane++) {
+      const curInsetX = trackOuterInsetX + lane * laneWidth;
+      const curInsetY = trackOuterInsetY + lane * laneWidth * 0.7;
+      const curW = pw - 2 * curInsetX;
+      const curH = ph - 2 * curInsetY;
+      const curRadius = Math.max(15, 65 - lane * 5);
+
+      ctx.beginPath();
+      ctx.roundRect(curInsetX, curInsetY, curW, curH, curRadius);
+      ctx.stroke();
+    }
+
+    // Lane Numbers 1-8 on the bottom finish straightaway
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.font = 'bold 11px "Chakra Petch", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let lane = 1; lane <= totalTrackLanes; lane++) {
+      const laneY = ph - margin.y + 16 + (lane - 1) * (laneWidth * 0.7) + (laneWidth * 0.35);
+      ctx.fillText(`${lane}`, centerX - 180, laneY);
+    }
+
+    // 5. Olympic Rings (5 Interlocking Rings) on top grass apron
+    this.drawOlympicRings(centerX, margin.y - 48, 14);
+
+    // 6. Olympic Flame Cauldron with flickering fire at top center
+    this.drawOlympicCauldron(centerX, -52);
+
+    // 7. Electronic Olympic LED Banner
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(margin.x - 8, margin.y - 16, pw - 2 * (margin.x - 8), 12);
+    ctx.fillRect(margin.x - 8, ph - margin.y + 4, pw - 2 * (margin.x - 8), 12);
+
+    ctx.font = 'bold 9px "Chakra Petch", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const olyAds = ['🏛️ OLİMPİK STAD ARENA 🏛️', 'CITIUS • ALTIUS • FORTIUS', '🌟 FAIR PLAY & RESPECT 🌟', '🏆 GOLD MEDAL MATCH 🏆'];
+    const adStep = (pw - 2 * margin.x) / 4;
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#facc15' : '#ffffff';
+      ctx.fillText(olyAds[i], margin.x + adStep * (i + 0.5), margin.y - 10);
+      ctx.fillStyle = i % 2 === 0 ? '#38bdf8' : '#ffffff';
+      ctx.fillText(olyAds[3 - i], margin.x + adStep * (i + 0.5), ph - margin.y + 10);
+    }
+  }
+
+  // Draw 5 Olympic Intertwined Rings
+  private drawOlympicRings(cx: number, cy: number, ringR: number) {
+    const ctx = this.ctx;
+    const ringColors = ['#0284c7', '#0f172a', '#dc2626', '#eab308', '#16a34a']; // Blue, Black, Red, Yellow, Green
+    const spacing = ringR * 1.6;
+
+    ctx.save();
+    ctx.lineWidth = 3;
+
+    // Top 3 rings: Blue, Black, Red
+    const topPositions = [
+      { x: cx - spacing, y: cy - ringR * 0.4, color: ringColors[0] },
+      { x: cx, y: cy - ringR * 0.4, color: ringColors[1] },
+      { x: cx + spacing, y: cy - ringR * 0.4, color: ringColors[2] },
+    ];
+    for (const r of topPositions) {
+      ctx.strokeStyle = r.color;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Bottom 2 rings: Yellow, Green
+    const botPositions = [
+      { x: cx - spacing / 2, y: cy + ringR * 0.4, color: ringColors[3] },
+      { x: cx + spacing / 2, y: cy + ringR * 0.4, color: ringColors[4] },
+    ];
+    for (const r of botPositions) {
+      ctx.strokeStyle = r.color;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // Draw Olympic Cauldron & Animated Golden/Orange Flame
+  private drawOlympicCauldron(cx: number, cy: number) {
+    const ctx = this.ctx;
+
+    ctx.save();
+    const pedestalGrad = ctx.createLinearGradient(cx - 24, cy, cx + 24, cy);
+    pedestalGrad.addColorStop(0, '#78350f');
+    pedestalGrad.addColorStop(0.5, '#fbbf24');
+    pedestalGrad.addColorStop(1, '#92400e');
+    ctx.fillStyle = pedestalGrad;
+
+    // Cauldron bowl
+    ctx.beginPath();
+    ctx.moveTo(cx - 22, cy);
+    ctx.lineTo(cx + 22, cy);
+    ctx.lineTo(cx + 14, cy + 12);
+    ctx.lineTo(cx - 14, cy + 12);
+    ctx.closePath();
+    ctx.fill();
+
+    // Stand
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(cx - 5, cy + 12, 10, 8);
+    ctx.fillRect(cx - 12, cy + 18, 24, 4);
+
+    // Warm radial glow radiating down into stadium
+    const flameGlow = ctx.createRadialGradient(cx, cy - 8, 4, cx, cy - 8, 90);
+    flameGlow.addColorStop(0, 'rgba(245, 158, 11, 0.45)');
+    flameGlow.addColorStop(0.5, 'rgba(239, 68, 68, 0.15)');
+    flameGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = flameGlow;
+    ctx.beginPath();
+    ctx.arc(cx, cy - 8, 90, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Animated flame tongues
+    const time = Date.now() / 90;
+    const flameH1 = 18 + Math.sin(time) * 4;
+    const flameH2 = 22 + Math.cos(time * 1.3) * 5;
+    const flameH3 = 16 + Math.sin(time * 1.7) * 4;
+
+    // Inner bright yellow flame
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, cy);
+    ctx.quadraticCurveTo(cx - 8, cy - flameH1, cx - 4, cy - flameH1 * 0.9);
+    ctx.quadraticCurveTo(cx, cy - flameH2, cx + 4, cy - flameH2 * 0.9);
+    ctx.quadraticCurveTo(cx + 8, cy - flameH3, cx + 12, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    // Outer orange flame fringe
+    ctx.fillStyle = 'rgba(249, 115, 22, 0.8)';
+    ctx.beginPath();
+    ctx.moveTo(cx - 15, cy);
+    ctx.quadraticCurveTo(cx - 10, cy - flameH1 * 1.15, cx, cy - flameH2 * 1.25);
+    ctx.quadraticCurveTo(cx + 10, cy - flameH3 * 1.15, cx + 15, cy);
+    ctx.closePath();
+    ctx.fill();
 
     ctx.restore();
   }
@@ -337,6 +594,7 @@ export class GameRenderer {
     const ctx = this.ctx;
     const pitch = this.engine.pitchConfig;
     const margin = this.engine.pitchMargin;
+    const isOlympic = this.engine.settings.stadiumType === 'olympic';
     const isGrand = this.engine.settings.stadiumType === 'grand_stadium';
 
     const left = margin.x;
@@ -347,11 +605,11 @@ export class GameRenderer {
     // Pitch turf base
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(left, top, width, height, isGrand ? 24 : 18);
+    ctx.roundRect(left, top, width, height, isOlympic ? 32 : isGrand ? 24 : 18);
     ctx.clip();
 
     // Haxball style: alternating dark charcoal & black stripes
-    const stripeCount = isGrand ? 18 : 12;
+    const stripeCount = isOlympic ? 22 : isGrand ? 18 : 12;
     const stripeWidth = width / stripeCount;
 
     const c1 = '#0e1014';
@@ -366,7 +624,7 @@ export class GameRenderer {
     const grad = ctx.createRadialGradient(
       pitch.width / 2,
       pitch.height / 2,
-      isGrand ? 160 : 90,
+      isOlympic ? 220 : isGrand ? 160 : 90,
       pitch.width / 2,
       pitch.height / 2,
       width * 0.72
@@ -386,6 +644,7 @@ export class GameRenderer {
     const ctx = this.ctx;
     const pitch = this.engine.pitchConfig;
     const margin = this.engine.pitchMargin;
+    const isOlympic = this.engine.settings.stadiumType === 'olympic';
     const isGrand = this.engine.settings.stadiumType === 'grand_stadium';
 
     const left = margin.x;
@@ -403,7 +662,7 @@ export class GameRenderer {
 
     // Outer boundary line
     ctx.beginPath();
-    ctx.roundRect(left, top, width, height, isGrand ? 24 : 18);
+    ctx.roundRect(left, top, width, height, isOlympic ? 32 : isGrand ? 24 : 18);
     ctx.stroke();
 
     // Center halfway line
@@ -413,7 +672,7 @@ export class GameRenderer {
     ctx.stroke();
 
     // Center circle
-    const centerRadius = isGrand ? 125 : 80;
+    const centerRadius = isOlympic ? 160 : isGrand ? 125 : 80;
     ctx.beginPath();
     ctx.arc(centerX, centerY, centerRadius, 0, Math.PI * 2);
     ctx.stroke();
@@ -421,11 +680,11 @@ export class GameRenderer {
     // Center kick-off spot
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(centerX, centerY, isGrand ? 6.5 : 5, 0, Math.PI * 2);
+    ctx.arc(centerX, centerY, isOlympic ? 7.5 : isGrand ? 6.5 : 5, 0, Math.PI * 2);
     ctx.fill();
 
     // Corner arcs
-    const cornerR = isGrand ? 30 : 20;
+    const cornerR = isOlympic ? 36 : isGrand ? 30 : 20;
     // Top-left
     ctx.beginPath();
     ctx.arc(left, top, cornerR, 0, Math.PI / 2);
@@ -444,32 +703,32 @@ export class GameRenderer {
     ctx.stroke();
 
     // Penalty Boxes (18-yard box)
-    const penBoxW = isGrand ? 240 : 140;
-    const penBoxH = isGrand ? 420 : 240;
+    const penBoxW = isOlympic ? 310 : isGrand ? 240 : 140;
+    const penBoxH = isOlympic ? 540 : isGrand ? 420 : 240;
     const penBoxTop = centerY - penBoxH / 2;
 
     ctx.strokeRect(left, penBoxTop, penBoxW, penBoxH);
     ctx.strokeRect(left + width - penBoxW, penBoxTop, penBoxW, penBoxH);
 
     // Goal area (6-yard box)
-    const goalAreaW = isGrand ? 95 : 55;
-    const goalAreaH = isGrand ? 220 : 140;
+    const goalAreaW = isOlympic ? 115 : isGrand ? 95 : 55;
+    const goalAreaH = isOlympic ? 280 : isGrand ? 220 : 140;
     const goalAreaTop = centerY - goalAreaH / 2;
 
     ctx.strokeRect(left, goalAreaTop, goalAreaW, goalAreaH);
     ctx.strokeRect(left + width - goalAreaW, goalAreaTop, goalAreaW, goalAreaH);
 
     // Penalty spots
-    const penSpotDist = isGrand ? 160 : 95;
+    const penSpotDist = isOlympic ? 200 : isGrand ? 160 : 95;
     ctx.beginPath();
-    ctx.arc(left + penSpotDist, centerY, isGrand ? 5.5 : 4, 0, Math.PI * 2);
+    ctx.arc(left + penSpotDist, centerY, isOlympic ? 6.5 : isGrand ? 5.5 : 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(left + width - penSpotDist, centerY, isGrand ? 5.5 : 4, 0, Math.PI * 2);
+    ctx.arc(left + width - penSpotDist, centerY, isOlympic ? 6.5 : isGrand ? 5.5 : 4, 0, Math.PI * 2);
     ctx.fill();
 
     // Penalty box D-arcs
-    const dArcRadius = isGrand ? 80 : 50;
+    const dArcRadius = isOlympic ? 100 : isGrand ? 80 : 50;
     ctx.beginPath();
     ctx.arc(left + penSpotDist, centerY, dArcRadius, -0.68, 0.68);
     ctx.stroke();
@@ -489,6 +748,61 @@ export class GameRenderer {
       ctx.strokeRect(centerX + 40, top - techBoxH - 6, techBoxW, techBoxH);
       ctx.setLineDash([]); // Reset line dash
     }
+  }
+
+  private drawSetPieceOverlay() {
+    const ctx = this.ctx;
+    const sp = this.engine.setPiece;
+    if (!sp.active) return;
+
+    const homeClubId = this.engine.settings.homeClub || 'liverpool';
+    const awayClubId = this.engine.settings.awayClub || 'ipswich';
+    const takingClub = CLUBS[sp.team === 'red' ? homeClubId : awayClubId] || CLUBS.liverpool;
+    const pulse = (Math.sin(Date.now() / 160) + 1) * 0.5;
+
+    ctx.save();
+
+    // Soft barrier zone fill
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.035)';
+    ctx.beginPath();
+    ctx.arc(sp.spotX, sp.spotY, sp.barrierRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dashed opposition exclusion ring
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.28 + pulse * 0.14})`;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.arc(sp.spotX, sp.spotY, sp.barrierRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Pulsing ball spot ring in taking club's color
+    const ballR = this.engine.ball.radius;
+    ctx.strokeStyle = takingClub.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(sp.spotX, sp.spotY, ballR + 8 + pulse * 6, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Subtle white inner ring
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(sp.spotX, sp.spotY, ballR + 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Set piece type micro-label directly above/below spot
+    const label = sp.type === 'throw_in' ? 'TAÇ' : sp.type === 'corner' ? 'KORNER' : 'AUT';
+    const pitch = this.engine.pitchConfig;
+    const labelOffsetY = sp.spotY < pitch.height / 2 ? ballR + 26 : -(ballR + 26);
+    ctx.font = 'bold 10px "Geist Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillText(`${label} · ${takingClub.code}`, sp.spotX, sp.spotY + labelOffsetY);
+
+    ctx.restore();
   }
 
   // ----------------------------------------------------
@@ -833,38 +1147,75 @@ export class GameRenderer {
       ctx.restore();
     }
 
-    // Disc Body 3D Gradient
-    const grad = ctx.createRadialGradient(player.x - r * 0.35, player.y - r * 0.35, r * 0.1, player.x, player.y, r);
-    grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(0.3, player.color);
-    grad.addColorStop(1, player.accentColor);
+    // Determine active club for this player
+    const homeClubId = this.engine.settings.homeClub || 'liverpool';
+    const awayClubId = this.engine.settings.awayClub || 'ipswich';
+    const activeClubId: ClubId = player.id === 'red' ? homeClubId : awayClubId;
+    const activeClub = CLUBS[activeClubId] || CLUBS.liverpool;
+    const charImg = this.clubCharacterImages[activeClubId];
+    const hasLoadedSprite = !!(charImg && charImg.complete && charImg.naturalWidth > 0);
 
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, r, 0, Math.PI * 2);
-    ctx.fill();
+    if (hasLoadedSprite && charImg) {
+      // Clip cleanly to circular player disc & render custom club character artwork
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, r, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
 
-    // Metallic Outer Rim
-    ctx.strokeStyle = player.isKicking ? '#fef08a' : '#ffffff';
-    ctx.lineWidth = player.isKicking ? 3.5 : 2.5;
-    ctx.stroke();
+      // Slight overscan (2.05x radius) trims outer square corners/checkerboard cleanly
+      const drawSize = r * 2.05;
+      ctx.drawImage(
+        charImg,
+        player.x - drawSize / 2,
+        player.y - drawSize / 2,
+        drawSize,
+        drawSize
+      );
+      ctx.restore();
+
+      // Subtle rim highlight & kick flash border
+      ctx.strokeStyle = player.isKicking ? '#fef08a' : 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth = player.isKicking ? 3.5 : 2;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // Fallback 3D Disc Gradient while image loads
+      const grad = ctx.createRadialGradient(player.x - r * 0.35, player.y - r * 0.35, r * 0.1, player.x, player.y, r);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.3, player.color);
+      grad.addColorStop(1, player.accentColor);
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = player.isKicking ? '#fef08a' : '#ffffff';
+      ctx.lineWidth = player.isKicking ? 3.5 : 2.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${r > 26 ? 15 : 13}px "Geist", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${player.number}`, player.x, player.y - 1.5);
+
+      ctx.fillStyle = activeClub.secondaryColor || '#ffffff';
+      ctx.font = `bold ${r > 26 ? 8.5 : 7.5}px "Geist Mono", monospace`;
+      ctx.fillText(activeClub.code, player.x, player.y + (r > 26 ? 10.5 : 9));
+    }
 
     // Kick visual ring feedback
     if (player.kickCooldown > 0) {
       const progress = player.kickCooldown / 0.22;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(player.x, player.y, r + 3, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
       ctx.stroke();
     }
-
-    // Player Jersey Number
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${r > 26 ? 16 : 14}px "Chakra Petch", sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${player.number}`, player.x, player.y + 1);
 
     // Movement direction indicator pip
     const speed = Math.hypot(player.vx, player.vy);
